@@ -1,0 +1,146 @@
+/* Style dla Książki Podziału używane tylko podczas drukowania */
+
+.printable-duty-book {
+  display: none; /* Ukryte w trybie normalnym, pokazujemy tylko przez @media print w index.css lub po ustawieniu stanu drukuj */
+  font-family: "Times New Roman", Times, serif; /* Klasyczny font dla dokumentów */
+  color: black;
+  background: white;
+}
+
+.printable-duty-book .duty-page {
+  width: 210mm;
+  min-height: 297mm;
+  padding: 15mm;
+  margin: 0 auto;
+  background: white;
+  box-sizing: border-box;
+  page-break-after: always;
+}
+
+.printable-duty-book .duty-page:last-child {
+  page-break-after: auto;
+}
+
+.printable-duty-book .header-title {
+  font-size: 14pt;
+  margin-bottom: 20px;
+}
+
+.printable-duty-book .dotted-line {
+  display: inline-block;
+  min-width: 40px;
+  border-bottom: 1px dotted black;
+  text-align: center;
+  font-weight: bold;
+}
+
+.printable-duty-book .table-title {
+  font-size: 12pt;
+  font-weight: bold;
+  text-transform: uppercase;
+  margin-bottom: 5px;
+}
+
+.printable-duty-book table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11pt;
+  margin-bottom: 20px;
+}
+
+.printable-duty-book th,
+.printable-duty-book td {
+  border: 1px solid black;
+  padding: 4px;
+}
+
+.printable-duty-book th {
+  text-align: center;
+  font-weight: normal;
+  background-color: #f0f0f0; /* Lekkie szare tło nagłówków */
+  -webkit-print-color-adjust: exact;
+  color-adjust: exact;
+}
+
+/* Tabela Podział Bojowy */
+.printable-duty-book .combat-squad-table th {
+  font-weight: bold;
+}
+
+.printable-duty-book .combat-squad-table .narrow-col {
+  width: 15%;
+}
+
+.printable-duty-book .combat-squad-table .num-col {
+  width: 5%;
+  font-weight: bold;
+}
+
+.printable-duty-book .combat-squad-table .val-col {
+  width: 17%;
+  font-weight: bold;
+}
+
+.printable-duty-book .left-align {
+  text-align: left;
+  padding-left: 5px;
+}
+
+.printable-duty-book .center-align {
+  text-align: center;
+}
+
+/* Tabela Ewidencja Wyjazdów */
+.printable-duty-book .events-table th {
+  font-size: 9pt;
+  font-weight: bold;
+}
+
+.printable-duty-book .events-table td {
+  font-size: 10pt;
+  height: 25px; /* Minimalna wysokość wiersza, żeby zgadzało się z książką */
+}
+
+/* Sekcja Notatek */
+.printable-duty-book .notes-section {
+  margin-top: 10px;
+  font-weight: bold;
+  font-size: 11pt;
+}
+
+.printable-duty-book .note-line {
+  border-bottom: 1px dotted black;
+  height: 25px;
+  width: 100%;
+}
+
+/* Podpis Dowódcy */
+.printable-duty-book .signature-section {
+  float: right;
+  width: 250px;
+  text-align: center;
+  margin-top: 50px;
+}
+
+.printable-duty-book .signature-title {
+  font-weight: bold;
+  font-size: 11pt;
+  margin-bottom: 40px;
+}
+
+.printable-duty-book .signature-line {
+  border-bottom: 1px dotted black;
+  width: 100%;
+}
+
+.printable-duty-book .signature-subtitle {
+  font-size: 9pt;
+  margin-top: 5px;
+}
+
+.printable-duty-book .page-number {
+  clear: both;
+  text-align: right;
+  font-size: 9pt;
+  margin-top: 30px;
+}
