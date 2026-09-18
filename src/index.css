@@ -257,21 +257,22 @@ input:focus {
   100% { opacity: 0.6; }
 }
 
+#print-root {
+  display: none;
+}
+
 @media print {
-  body * {
-    visibility: hidden;
-  }
   body {
     background: white !important;
     background-image: none !important;
+    margin: 0;
+    padding: 0;
   }
-  .printable-duty-book, .printable-duty-book * {
-    visibility: visible;
+  #root {
+    display: none !important;
   }
-  .printable-duty-book {
-    position: absolute;
-    left: 0;
-    top: 0;
+  #print-root {
+    display: block !important;
     width: 100%;
   }
 }

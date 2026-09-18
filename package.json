@@ -1,7 +1,7 @@
 {
   "name": "frontend",
   "private": true,
-  "version": "1.0.3",
+  "version": "1.0.4",
   "author": "Jakub Martyka <jmartyka@kiosk.osp.pl>",
   "description": "System Dowodzenia i Kiosk dla Jednostek OSP",
   "copyright": "Copyright © 2026 OSP",

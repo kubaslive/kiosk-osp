@@ -16,6 +16,33 @@ function Dashboard({ user, onLogout }) {
   const [isEndingDuty, setIsEndingDuty] = useState(false);
   const [isHistorical, setIsHistorical] = useState(false);
   const [showChangelog, setShowChangelog] = useState(false);
+  const [appVersion, setAppVersion] = useState('');
+
+  useEffect(() => {
+    if (window.require) {
+      try {
+        const { ipcRenderer } = window.require('electron');
+        const ver = ipcRenderer.sendSync('get-app-version');
+        setAppVersion(ver);
+      } catch (e) {
+        console.warn('Nie można pobrać wersji aplikacji', e);
+      }
+    }
+  }, []);
+
+  const handleCheckUpdates = () => {
+    if (window.require) {
+      try {
+        const { ipcRenderer } = window.require('electron');
+        ipcRenderer.send('check-for-updates');
+        alert("Sprawdzam dostępność aktualizacji na serwerze... Jeśli jest dostępna nowa wersja, Kiosk pobierze ją w tle i zaktualizuje się przy kolejnym uruchomieniu.");
+      } catch (e) {
+        alert("Wystąpił błąd podczas sprawdzania aktualizacji.");
+      }
+    } else {
+      alert("Sprawdzanie aktualizacji działa tylko w aplikacji Kiosk (nie w oknie przeglądarki).");
+    }
+  };
 
   // Zegar i status sieci
   useEffect(() => {
@@ -128,6 +155,19 @@ function Dashboard({ user, onLogout }) {
           <div style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
             {currentTime.toLocaleDateString('pl-PL', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
           </div>
+          {appVersion && (
+            <div style={{ marginTop: '0.5rem', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.2rem' }}>
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Wersja Kiosku: {appVersion}</span>
+              <button 
+                onClick={handleCheckUpdates} 
+                style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.2)', color: 'var(--text-secondary)', borderRadius: '6px', padding: '0.25rem 0.5rem', fontSize: '0.75rem', cursor: 'pointer' }}
+                onMouseOver={(e) => { e.target.style.color = 'white'; e.target.style.borderColor = 'white'; }}
+                onMouseOut={(e) => { e.target.style.color = 'var(--text-secondary)'; e.target.style.borderColor = 'rgba(255,255,255,0.2)'; }}
+              >
+                Sprawdź aktualizacje
+              </button>
+            </div>
+          )}
         </div>
       </div>
 

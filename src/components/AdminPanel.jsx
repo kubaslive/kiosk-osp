@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { initializeApp } from 'firebase/app';
 import { getAuth, createUserWithEmailAndPassword } from 'firebase/auth';
 import { collection, query, orderBy, onSnapshot, doc, setDoc, deleteDoc, addDoc, updateDoc, getDoc, getDocs, where } from 'firebase/firestore';
@@ -54,6 +55,17 @@ function AdminPanel({ user }) {
 
   const [printDate, setPrintDate] = useState(new Date().toISOString().split('T')[0]);
   const [printReports, setPrintReports] = useState([]);
+  const [printRoot, setPrintRoot] = useState(null);
+
+  useEffect(() => {
+    let el = document.getElementById('print-root');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'print-root';
+      document.body.appendChild(el);
+    }
+    setPrintRoot(el);
+  }, []);
 
   const [ekwRate, setEkwRate] = useState(40);
   const [ekwYear, setEkwYear] = useState(new Date().getFullYear());
@@ -345,7 +357,7 @@ function AdminPanel({ user }) {
 
   return (
     <>
-      <PrintableDutyBook date={printDate} reports={printReports} />
+      {printRoot && createPortal(<PrintableDutyBook date={printDate} reports={printReports} />, printRoot)}
       <div className="no-print" style={{ marginTop: '2rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
         
       {/* SEKCJA: STATYSTYKI KPI */}

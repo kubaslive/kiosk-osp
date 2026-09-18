@@ -5,6 +5,9 @@ const { autoUpdater } = require('electron-updater');
 // Auto-aktualizacje w tle
 autoUpdater.autoDownload = true;
 autoUpdater.autoInstallOnAppQuit = true;
+autoUpdater.on('update-downloaded', (info) => {
+  // Opcjonalnie: można tu wysłać event do frontendu, że paczka jest gotowa
+});
 
 function createWindow() {
   const win = new BrowserWindow({
@@ -28,6 +31,15 @@ function createWindow() {
     win.loadFile(path.join(__dirname, 'dist', 'index.html'));
   }
 }
+
+// Obsługa IPC dla aktualizacji z frontendu
+ipcMain.on('get-app-version', (event) => {
+  event.returnValue = app.getVersion();
+});
+
+ipcMain.on('check-for-updates', () => {
+  autoUpdater.checkForUpdatesAndNotify();
+});
 
 app.whenReady().then(() => {
   createWindow();
