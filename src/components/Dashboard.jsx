@@ -12,7 +12,7 @@ function Dashboard({ user, onLogout }) {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [showDutyForm, setShowDutyForm] = useState(false);
   const [editingReport, setEditingReport] = useState(null);
-  const [activeDuty, setActiveDuty] = useState(null);
+  const [activeDuties, setActiveDuties] = useState([]);
   const [isEndingDuty, setIsEndingDuty] = useState(false);
   const [isHistorical, setIsHistorical] = useState(false);
   const [showChangelog, setShowChangelog] = useState(false);
@@ -131,18 +131,17 @@ function Dashboard({ user, onLogout }) {
 
     const q = query(
       collection(db, 'duty_reports'),
-      where('status', '==', 'active'),
-      limit(1)
+      where('status', '==', 'active')
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       if (!snapshot.empty) {
-        const duty = { id: snapshot.docs[0].id, ...snapshot.docs[0].data() };
-        setActiveDuty(duty);
-        localStorage.setItem('cachedActiveDuty', JSON.stringify(duty));
+        const duties = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        setActiveDuties(duties);
+        localStorage.setItem('cachedActiveDuties', JSON.stringify(duties));
       } else {
-        setActiveDuty(null);
-        localStorage.removeItem('cachedActiveDuty');
+        setActiveDuties([]);
+        localStorage.removeItem('cachedActiveDuties');
       }
     });
 
@@ -157,18 +156,29 @@ function Dashboard({ user, onLogout }) {
     return name.substring(0, 2).toUpperCase();
   };
 
-  const handleEndDuty = async () => {
-    if (activeDuty.createdByUid !== user.id && user.role !== 'Admin' && user.email !== 'jmartyka@kiosk.osp.pl') {
+  const handleEndDuty = async (duty) => {
+    if (duty.createdByUid !== user.id && user.role !== 'admin' && user.email !== 'jmartyka@kiosk.osp.pl') {
       alert("Tylko dowódca, który rozpoczął ten dyżur (lub Admin) może go zakończyć!");
       return;
     }
 
-    if (window.confirm('Czy na pewno chcesz zakończyć bieżący dyżur? Pamiętaj o sprawdzeniu porządków.')) {
-      setEditingReport(activeDuty);
+    if (window.confirm('Czy na pewno chcesz zakończyć ten dyżur? Pamiętaj o sprawdzeniu porządków.')) {
+      setEditingReport(duty);
       setIsEndingDuty(true);
       setIsHistorical(false);
       setShowDutyForm(true);
     }
+  };
+
+  const handleEditDuty = (duty) => {
+    if (duty.createdByUid !== user.id && user.role !== 'admin' && user.email !== 'jmartyka@kiosk.osp.pl') {
+      alert("Tylko dowódca, który rozpoczął ten dyżur (lub Admin) może go edytować!");
+      return;
+    }
+    setEditingReport(duty);
+    setIsEndingDuty(false);
+    setIsHistorical(false);
+    setShowDutyForm(true);
   };
 
   return (
@@ -224,52 +234,49 @@ function Dashboard({ user, onLogout }) {
             </button>
           </div>
 
-          {activeDuty ? (
-            <div style={{ background: 'rgba(239, 68, 68, 0.1)', border: '2px solid var(--danger-color)', padding: '1.5rem', borderRadius: '16px', marginBottom: '2rem' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '1rem' }}>
-                <h2 style={{ color: 'var(--danger-color)', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <div style={{ width: '15px', height: '15px', background: 'var(--danger-color)', borderRadius: '50%' }}></div>
-                  AKTYWNY DYŻUR
-                </h2>
-                <div style={{ color: 'white', fontWeight: 'bold', display: 'flex', gap: '1.5rem', flexWrap: 'wrap' }}>
-                  <div>Pojazd: <span style={{ color: 'var(--primary-color)' }}>{activeDuty.vehicle}</span></div>
-                  {activeDuty.driverName && (
-                    <div>Kierowca: <span style={{ color: '#00ff88' }}>{activeDuty.driverName}</span></div>
-                  )}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem', marginBottom: '2rem' }}>
+            {activeDuties.map(duty => (
+              <div key={duty.id} style={{ background: 'rgba(239, 68, 68, 0.1)', border: '2px solid var(--danger-color)', padding: '1.5rem', borderRadius: '16px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '1rem' }}>
+                  <h2 style={{ color: 'var(--danger-color)', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <div style={{ width: '15px', height: '15px', background: 'var(--danger-color)', borderRadius: '50%' }}></div>
+                    AKTYWNY DYŻUR
+                  </h2>
+                  <div style={{ color: 'white', fontWeight: 'bold', display: 'flex', gap: '1.5rem', flexWrap: 'wrap' }}>
+                    <div>Pojazd: <span style={{ color: 'var(--primary-color)' }}>{duty.vehicle}</span></div>
+                    {duty.driverName && (
+                      <div>Kierowca: <span style={{ color: '#00ff88' }}>{duty.driverName}</span></div>
+                    )}
+                  </div>
+                </div>
+                
+                <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', marginBottom: '1.5rem' }}>
+                  {duty.squad && duty.squad.map(member => (
+                    <div key={member.id} style={{ background: 'rgba(255,255,255,0.1)', padding: '0.5rem 1rem', borderRadius: '8px', fontWeight: 'bold' }}>
+                      {member.firstName} {member.lastName}
+                    </div>
+                  ))}
+                </div>
+
+                <div style={{ display: 'flex', gap: '1rem' }}>
+                  <button 
+                    onClick={() => handleEditDuty(duty)} 
+                    className="btn" 
+                    style={{ flex: 1, backgroundColor: 'rgba(255,255,255,0.1)', border: '1px solid var(--primary-color)', color: 'var(--primary-color)' }}
+                  >
+                    📝 EDYTUJ / DODAJ WYJAZD
+                  </button>
+                  <button 
+                    onClick={() => handleEndDuty(duty)} 
+                    className="btn btn-danger" 
+                    style={{ flex: 1 }}
+                  >
+                    🔴 ZAKOŃCZ DYŻUR
+                  </button>
                 </div>
               </div>
-              
-              <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', marginBottom: '1.5rem' }}>
-                {activeDuty.squad && activeDuty.squad.map(member => (
-                  <div key={member.id} style={{ background: 'rgba(255,255,255,0.1)', padding: '0.5rem 1rem', borderRadius: '8px', fontWeight: 'bold' }}>
-                    {member.firstName} {member.lastName}
-                  </div>
-                ))}
-              </div>
-
-              <div style={{ display: 'flex', gap: '1rem' }}>
-                <button 
-                  onClick={() => {
-                    setEditingReport(activeDuty);
-                    setIsEndingDuty(false);
-                    setIsHistorical(false);
-                    setShowDutyForm(true);
-                  }} 
-                  className="btn" 
-                  style={{ flex: 1, backgroundColor: 'rgba(255,255,255,0.1)', border: '1px solid var(--primary-color)', color: 'var(--primary-color)' }}
-                >
-                  📝 EDYTUJ / DODAJ WYJAZD
-                </button>
-                <button 
-                  onClick={handleEndDuty} 
-                  className="btn btn-danger" 
-                  style={{ flex: 1 }}
-                >
-                  🔴 ZAKOŃCZ DYŻUR
-                </button>
-              </div>
-            </div>
-          ) : (
+            ))}
+            
             <button 
               onClick={() => {
                 setEditingReport(null);
@@ -282,7 +289,7 @@ function Dashboard({ user, onLogout }) {
             >
               🟢 ROZPOCZNIJ NOWY DYŻUR
             </button>
-          )}
+          </div>
 
           {user.role === 'admin' && (
             <button 
@@ -315,6 +322,7 @@ function Dashboard({ user, onLogout }) {
           initialData={editingReport}
           isEndingDuty={isEndingDuty}
           isHistorical={isHistorical}
+          activeDuties={activeDuties}
           onCancel={() => {
             setShowDutyForm(false);
             setEditingReport(null);
@@ -349,9 +357,28 @@ function Dashboard({ user, onLogout }) {
             </div>
             
             <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem', textAlign: 'left' }}>
+
+              {/* === WERSJA 1.1 === */}
+              <div style={{ background: 'rgba(0,255,136,0.06)', border: '1px solid rgba(0,255,136,0.2)', borderRadius: '12px', padding: '1.25rem 1.5rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.75rem' }}>
+                  <span style={{ background: '#00ff88', color: '#0f172a', fontSize: '0.7rem', fontWeight: 'bold', padding: '0.2rem 0.6rem', borderRadius: '20px' }}>NOWOŚĆ</span>
+                  <h3 style={{ color: '#00ff88', margin: 0 }}>Wersja 1.1 — Filtry, multi-auto i zabezpieczenia</h3>
+                </div>
+                <ul style={{ color: 'var(--text-secondary)', lineHeight: '1.8', paddingLeft: '1.5rem', margin: 0 }}>
+                  <li><strong>Dyżur na 2 auta:</strong> Możliwość zgłoszenia dyżuru jednocześnie na dwa pojazdy z osobnymi obsadami (obsada 1 i obsada 2).</li>
+                  <li><strong>Filtrowanie rankingu:</strong> Klikalne nagłówki kolumn (sortowanie ▲▼) oraz filtry minimalne: wyjazdy, dyżury, godziny dyżurów.</li>
+                  <li><strong>Zabezpieczenia uprawnień:</strong> Zwykły dowódca nie może edytować ani kończyć dyżurów innych użytkowników. Osoby będące już na dyżurze nie mogą być przypisane do drugiego auta.</li>
+                  <li><strong>Podpowiedź numeru wyjazdu:</strong> System zapamiętuje ostatni wpisany numer i podpowiada go przy kolejnym raporcie.</li>
+                  <li><strong>Zarządzanie pojazdami:</strong> Administrator może dodawać nowe auta oraz edytować istniejące bezpośrednio z panelu.</li>
+                  <li><strong>Uwagi z obsady w notatce:</strong> Opis/uwagi z dyżuru automatycznie przenoszą się do sekcji prac gospodarczych z numerem obsady.</li>
+                  <li><strong>Pełna historia po nowym roku:</strong> System obsługuje dane z wielu lat – filtrowanie roczne działa poprawnie przy przełomie roku.</li>
+                </ul>
+              </div>
+
+              {/* === WERSJA 1.0.8 === */}
               <div>
-                <h3 style={{ color: 'white', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '0.5rem' }}>Wersja 1.0.5 (Wydruk + Wygaszacz + Konta)</h3>
-                <ul style={{ color: 'var(--text-secondary)', lineHeight: '1.6', paddingLeft: '1.5rem', marginTop: '1rem' }}>
+                <h3 style={{ color: 'rgba(255,255,255,0.7)', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '0.5rem', fontSize: '1rem' }}>Wersja 1.0.8 (Aktualizacja Kiosku)</h3>
+                <ul style={{ color: 'var(--text-secondary)', lineHeight: '1.6', paddingLeft: '1.5rem', marginTop: '1rem', opacity: 0.7 }}>
                   <li><strong>Tryb Live:</strong> Możliwość rozpoczęcia dyżuru na żywo – czas liczony jest automatycznie, a dyżur staje się "Aktywny".</li>
                   <li><strong>Wygaszacz ekranu:</strong> Nowy, elegancki ekran blokady (Standby Mode) z podglądem pełnej obsady oraz pojazdu.</li>
                   <li><strong>Zabezpieczenie blokadą:</strong> Opcja "Zablokuj Ekran", która włącza wygaszacz. Powrót wymaga potwierdzenia hasła (login zostaje zapamiętany).</li>
@@ -360,6 +387,7 @@ function Dashboard({ user, onLogout }) {
                   <li><strong>Ranking JOT:</strong> Globalna tabela aktywności strażaków pokazująca uczestnictwo w dyżurach i wyjazdach.</li>
                 </ul>
               </div>
+
             </div>
           </div>
         </div>
@@ -367,7 +395,7 @@ function Dashboard({ user, onLogout }) {
 
       <div style={{ marginTop: '2rem', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', gap: '1rem', fontSize: '0.85rem', color: 'rgba(255,255,255,0.3)', flexWrap: 'wrap' }}>
         <div style={{ display: 'flex', gap: '2rem', alignItems: 'center' }}>
-          <div>Wersja {appVersion || '1.0.5'}, autor Jakub Martyka</div>
+          <div>Wersja {appVersion || '1.1.0'}, autor Jakub Martyka</div>
           {!updateStatus && (
             <button 
               onClick={handleCheckUpdates}

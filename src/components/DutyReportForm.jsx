@@ -2,8 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { collection, addDoc, doc, updateDoc, serverTimestamp, query, orderBy, getDocs, getDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { logSystemAction } from '../utils/logger';
+import Tooltip from './Tooltip';
 
-function DutyReportForm({ user, onCancel, initialData, isEndingDuty, isHistorical }) {
+function DutyReportForm({ user, onCancel, initialData, isEndingDuty, isHistorical, activeDuties = [] }) {
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
 
@@ -31,7 +32,51 @@ function DutyReportForm({ user, onCancel, initialData, isEndingDuty, isHistorica
 
   const [vehicleStatuses, setVehicleStatuses] = useState({});
 
+  const busyVehicles = activeDuties.filter(d => d.id !== initialData?.id).map(d => d.vehicle);
+  const busyUsers = new Set();
+  activeDuties.filter(d => d.id !== initialData?.id).forEach(d => {
+    if (d.createdByUid) busyUsers.add(d.createdByUid);
+    if (d.driverId) busyUsers.add(d.driverId);
+    if (d.squad && Array.isArray(d.squad)) {
+      d.squad.forEach(m => busyUsers.add(m.id));
+    }
+  });
+
+  const handleSuggestInternalNumber = async (eventIndex) => {
+    try {
+      const currentYear = new Date(date).getFullYear();
+      const qReports = query(
+        collection(db, 'duty_reports'),
+        where('date', '>=', `${currentYear}-01-01`),
+        where('date', '<=', `${currentYear}-12-31`)
+      );
+      const snapshot = await getDocs(qReports);
+      let maxNumber = 0;
+      snapshot.forEach(doc => {
+        const data = doc.data();
+        if (data.events && Array.isArray(data.events)) {
+          data.events.forEach(ev => {
+            if (ev.internalReportNumber) {
+              const match = ev.internalReportNumber.match(/^(\d+)/);
+              if (match) {
+                const num = parseInt(match[1], 10);
+                if (num > maxNumber) maxNumber = num;
+              }
+            }
+          });
+        }
+      });
+      const nextNumber = maxNumber + 1;
+      updateEvent(eventIndex, 'internalReportNumber', `${nextNumber}`);
+    } catch(e) {
+      console.error(e);
+      alert('Błąd pobierania numeru, wpisz ręcznie.');
+    }
+  };
+
   const filteredUsers = allUsers.filter(u => {
+    if (busyUsers.has(u.id)) return false; // Nie pokazuj osób, które są już na innym dyżurze
+
     const matchesSearch = `${u.firstName} ${u.lastName}`.toLowerCase().includes(searchTerm.toLowerCase());
     if (!matchesSearch) return false;
     
@@ -142,6 +187,24 @@ function DutyReportForm({ user, onCancel, initialData, isEndingDuty, isHistorica
         }
       }
 
+      let obsadaNumber = 1;
+      if (initialData && initialData.id) {
+         const idx = activeDuties.findIndex(d => d.id === initialData.id);
+         if (idx !== -1) obsadaNumber = idx + 1;
+      } else {
+         obsadaNumber = activeDuties.length + 1;
+      }
+
+      let finalGeneralNotes = generalNotes;
+      events.forEach((ev) => {
+        if (ev.notes && ev.notes.trim() !== '') {
+           const prefix = `Obsada ${obsadaNumber} (${vehicle}): `;
+           if (!finalGeneralNotes.includes(prefix)) {
+             finalGeneralNotes = finalGeneralNotes ? `${finalGeneralNotes}\n${prefix}${ev.notes}` : `${prefix}${ev.notes}`;
+           }
+        }
+      });
+
       const reportData = {
         date,
         isAlarmOnly,
@@ -152,7 +215,7 @@ function DutyReportForm({ user, onCancel, initialData, isEndingDuty, isHistorica
         driverName,
         cleanlinessOk: isAlarmOnly ? true : cleanlinessOk,
         cleanlinessNotes: (isAlarmOnly || cleanlinessOk) ? '' : cleanlinessNotes,
-        generalNotes,
+        generalNotes: finalGeneralNotes,
         events,
         squad
       };
@@ -273,12 +336,20 @@ function DutyReportForm({ user, onCancel, initialData, isEndingDuty, isHistorica
                     onChange={e => setVehicle(e.target.value)}
                     style={{ background: 'rgba(15, 23, 42, 0.6)', border: '1px solid var(--surface-border)', borderRadius: '12px', padding: '0.875rem 1rem', color: 'var(--text-primary)', outline: 'none' }}
                   >
-                    <option value="SF 329-42 GCBA MAN" disabled={vehicleStatuses['SF 329-42 GCBA MAN']?.isOutOfService}>
-                      SF 329-42 GCBA MAN {vehicleStatuses['SF 329-42 GCBA MAN']?.isOutOfService ? '(Wycofany z podziału)' : ''}
-                    </option>
-                    <option value="SF 329-41 GBA Renault" disabled={vehicleStatuses['SF 329-41 GBA Renault']?.isOutOfService}>
-                      SF 329-41 GBA Renault {vehicleStatuses['SF 329-41 GBA Renault']?.isOutOfService ? '(Wycofany z podziału)' : ''}
-                    </option>
+                    {Array.from(new Set([...Object.keys(vehicleStatuses), 'SF 329-42 GCBA MAN', 'SF 329-41 GBA Renault'])).map(veh => {
+                      const isBusy = busyVehicles.includes(veh);
+                      const isOut = vehicleStatuses[veh]?.isOutOfService;
+                      const disabled = isBusy || isOut;
+                      let label = veh;
+                      if (isOut) label += ' (Wycofany z podziału)';
+                      else if (isBusy) label += ' (W Akcji)';
+                      
+                      return (
+                        <option key={veh} value={veh} disabled={disabled}>
+                          {label}
+                        </option>
+                      );
+                    })}
                   </select>
                 </div>
               </div>
@@ -408,10 +479,16 @@ function DutyReportForm({ user, onCancel, initialData, isEndingDuty, isHistorica
                       </div>
                     </div>
                     <div className="form-group">
-                      <label>Numer wyjazdu wewn. OSP</label>
+                      <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                          Numer wyjazdu wewn. OSP
+                          <Tooltip text="Wewnętrzny numer wyjazdu w rejestrze OSP (np. 45 — czyli 45. wyjazd w roku). Przycisk ‘Zasugeruj’ automatycznie pobiera ostatni numer z bazy i proponuje kolejny." />
+                        </span>
+                        <button type="button" onClick={() => handleSuggestInternalNumber(index)} style={{ background: 'transparent', border: 'none', color: '#00ff88', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 'bold' }}>+ Zasugeruj numer</button>
+                      </label>
                       <input 
                         type="text" 
-                        placeholder="np. 45/2026" 
+                        placeholder="np. 45" 
                         value={event.internalReportNumber || ''} 
                         onChange={e => updateEvent(index, 'internalReportNumber', e.target.value)} 
                         style={{ width: '100%', padding: '0.875rem' }}

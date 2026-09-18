@@ -11,30 +11,63 @@ function Login() {
   const [isStandby, setIsStandby] = useState(true);
   const [time, setTime] = useState(new Date());
   
+  const [weatherData, setWeatherData] = useState(null);
+  const [warnings, setWarnings] = useState([]);
+  
   // Próbujemy wczytać dyżur z cache (ponieważ jako wylogowani nie mamy dostępu do bazy)
-  const cached = localStorage.getItem('cachedActiveDuty');
-  const [activeDuty, setActiveDuty] = useState(cached ? JSON.parse(cached) : null);
+  const cached = localStorage.getItem('cachedActiveDuties');
+  const [activeDuties, setActiveDuties] = useState(cached ? JSON.parse(cached) : []);
   const [isDutyLoading, setIsDutyLoading] = useState(true);
 
-  // Zegar dla trybu Standby
+  // Zegar dla trybu Standby i pogoda
   useEffect(() => {
     const timer = setInterval(() => setTime(new Date()), 1000);
-    return () => clearInterval(timer);
+    
+    const fetchWeather = async () => {
+      try {
+        const synopRes = await fetch('https://danepubliczne.imgw.pl/api/data/synop/id/12560');
+        if (synopRes.ok) {
+           const data = await synopRes.json();
+           setWeatherData(data);
+        }
+        const warnRes = await fetch('https://danepubliczne.imgw.pl/api/data/warningsmeteo');
+        if (warnRes.ok) {
+           const warnData = await warnRes.json();
+           if (Array.isArray(warnData)) {
+              setWarnings(warnData.filter(w => w.powiat && w.powiat.toLowerCase().includes('katowic')));
+           } else {
+              setWarnings([]);
+           }
+        }
+      } catch (e) {
+        console.error('Weather fetch error', e);
+      }
+    };
+    
+    fetchWeather();
+    const wTimer = setInterval(fetchWeather, 15 * 60 * 1000); // 15 min
+    
+    return () => {
+      clearInterval(timer);
+      clearInterval(wTimer);
+    };
   }, []);
 
   // Nasłuchiwanie na aktywny dyżur (bez logowania, z obsługą błędów Reguł Firebase)
   useEffect(() => {
     const q = query(
       collection(db, 'duty_reports'),
-      where('status', '==', 'active'),
-      limit(1)
+      where('status', '==', 'active')
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       if (!snapshot.empty) {
-        setActiveDuty(snapshot.docs[0].data());
+        const duties = snapshot.docs.map(doc => doc.data());
+        setActiveDuties(duties);
+        localStorage.setItem('cachedActiveDuties', JSON.stringify(duties));
       } else {
-        setActiveDuty(null);
+        setActiveDuties([]);
+        localStorage.removeItem('cachedActiveDuties');
       }
       setIsDutyLoading(false);
     }, (err) => {
@@ -124,15 +157,12 @@ function Login() {
         onClick={() => setIsStandby(false)}
       >
         {/* Pogoda / Radar w tle wygaszacza */}
-        <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: 0, pointerEvents: 'none' }}>
-          <iframe 
-            width="100%" 
-            height="100%" 
-            src="https://embed.windy.com/embed.html?type=map&location=coordinates&metricRain=mm&metricTemp=%C2%B0C&metricWind=km/h&zoom=7&overlay=radar&product=radar&menu=&message=&marker=&calendar=now&city=&playmap=true&region=Europe&lat=51.759&lon=19.456" 
-            frameBorder="0"
-            style={{ width: '100%', height: '100%', pointerEvents: 'none', filter: 'saturate(1.2)' }}
-          ></iframe>
-        </div>
+        <div style={{
+          position: 'absolute',
+          top: 0, left: 0, width: '100%', height: '100%',
+          background: 'linear-gradient(135deg, #111827 0%, #1e1b4b 100%)',
+          zIndex: -1
+        }}></div>
         {/* Warstwa przyciemniająca dla czytelności tekstu */}
         <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(15, 23, 42, 0.75)', zIndex: 1, pointerEvents: 'none' }}></div>
         
@@ -141,41 +171,57 @@ function Login() {
         <div style={{ fontSize: '10vw', fontWeight: 'bold', fontFamily: 'monospace', color: '#ffffff', lineHeight: '1', textShadow: '0 10px 30px rgba(0,0,0,0.5)' }}>
           {time.toLocaleTimeString('pl-PL')}
         </div>
-        <div style={{ fontSize: '1.8vw', color: 'var(--primary-color)', marginTop: '1rem', fontWeight: '500', textTransform: 'uppercase', letterSpacing: '2px' }}>
-          {time.toLocaleDateString('pl-PL', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '2rem', fontSize: '1.8vw', color: 'var(--primary-color)', marginTop: '1rem', fontWeight: '500', textTransform: 'uppercase', letterSpacing: '2px' }}>
+          <div>{time.toLocaleDateString('pl-PL', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</div>
+          {weatherData && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', background: 'rgba(0,0,0,0.4)', padding: '0.5rem 1.5rem', borderRadius: '30px', border: '1px solid rgba(255,255,255,0.1)' }}>
+              <span style={{ color: '#fff', fontWeight: 'bold' }}>Katowice: {weatherData.temperatura}°C</span>
+              <span style={{ color: 'rgba(255,255,255,0.6)', fontSize: '1.2vw' }}>Wiatr: {weatherData.predkosc_wiatru} m/s</span>
+            </div>
+          )}
         </div>
+        
+        {warnings.length > 0 && (
+          <div style={{ marginTop: '2rem', background: 'rgba(220, 38, 38, 0.2)', border: '2px solid #dc2626', padding: '1rem 3rem', borderRadius: '15px', color: '#fca5a5', fontSize: '1.5vw', fontWeight: 'bold', textTransform: 'uppercase', animation: 'pulse 2s infinite', letterSpacing: '1px' }}>
+             ⚠️ ALERTY IMGW DLA KATOWIC: ZNALEZIONO {warnings.length} OSTRZEŻEŃ!
+          </div>
+        )}
 
-        {activeDuty && (
-          <div className="glass-card" style={{ marginTop: '3rem', width: '90%', maxWidth: '900px', padding: '2rem', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1.5rem', animation: 'fadeUp 0.6s' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', color: 'var(--danger-color)', fontSize: '1.5rem', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '2px' }}>
-               <div className="status-dot" style={{ background: 'var(--danger-color)', boxShadow: '0 0 8px var(--danger-color)' }}></div>
-               TRWA DYŻUR BOJOWY
-            </div>
-            
-            <div style={{ display: 'flex', gap: '2rem', color: 'white', fontSize: '1.4rem', flexWrap: 'wrap', justifyContent: 'center' }}>
-              <div>Pojazd: <strong style={{ color: 'var(--primary-color)' }}>{activeDuty.vehicle}</strong></div>
-              <div>Od: <strong style={{ color: '#00ff88' }}>{activeDuty.startTime}</strong></div>
-            </div>
+        {activeDuties && activeDuties.length > 0 && (
+          <div style={{ marginTop: '3rem', display: 'flex', gap: '2rem', flexWrap: 'wrap', justifyContent: 'center', width: '95%' }}>
+            {activeDuties.map((duty, idx) => (
+              <div key={idx} className="glass-card" style={{ flex: '1 1 400px', maxWidth: '600px', padding: '2rem', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1.5rem', animation: 'fadeUp 0.6s' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', color: 'var(--danger-color)', fontSize: '1.3rem', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '2px' }}>
+                   <div className="status-dot" style={{ background: 'var(--danger-color)', boxShadow: '0 0 8px var(--danger-color)' }}></div>
+                   TRWA DYŻUR BOJOWY
+                </div>
+                
+                <div style={{ display: 'flex', gap: '1.5rem', color: 'white', fontSize: '1.3rem', flexWrap: 'wrap', justifyContent: 'center' }}>
+                  <div>Pojazd: <strong style={{ color: 'var(--primary-color)' }}>{duty.vehicle}</strong></div>
+                  <div>Od: <strong style={{ color: '#00ff88' }}>{duty.startTime}</strong></div>
+                </div>
 
-            {((activeDuty.squad && activeDuty.squad.length > 0) || activeDuty.creatorName || activeDuty.driverName) && (
-              <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', justifyContent: 'center', marginTop: '1rem', borderTop: '1px solid var(--surface-border)', paddingTop: '1.5rem', width: '100%' }}>
-                {activeDuty.creatorName && (
-                  <div style={{ background: 'rgba(255, 170, 0, 0.15)', border: '1px solid #ffaa00', padding: '0.75rem 1.5rem', borderRadius: '12px', fontWeight: 'bold', color: '#ffaa00' }}>
-                    {activeDuty.creatorName} (Dowódca)
+                {((duty.squad && duty.squad.length > 0) || duty.creatorName || duty.driverName) && (
+                  <div style={{ display: 'flex', gap: '0.8rem', flexWrap: 'wrap', justifyContent: 'center', marginTop: '1rem', borderTop: '1px solid var(--surface-border)', paddingTop: '1.5rem', width: '100%' }}>
+                    {duty.creatorName && (
+                      <div style={{ background: 'rgba(255, 170, 0, 0.15)', border: '1px solid #ffaa00', padding: '0.6rem 1.2rem', borderRadius: '12px', fontWeight: 'bold', color: '#ffaa00' }}>
+                        {duty.creatorName} (Dowódca)
+                      </div>
+                    )}
+                    {duty.driverName && (
+                      <div style={{ background: 'rgba(0, 255, 136, 0.15)', border: '1px solid #00ff88', padding: '0.6rem 1.2rem', borderRadius: '12px', fontWeight: 'bold', color: '#00ff88' }}>
+                        {duty.driverName} (Kierowca)
+                      </div>
+                    )}
+                    {duty.squad?.map(member => (
+                      <div key={member.id} style={{ background: 'rgba(15, 23, 42, 0.6)', border: '1px solid var(--surface-border)', padding: '0.6rem 1.2rem', borderRadius: '12px', fontWeight: 'bold', color: 'var(--text-primary)' }}>
+                        {member.firstName} {member.lastName}
+                      </div>
+                    ))}
                   </div>
                 )}
-                {activeDuty.driverName && (
-                  <div style={{ background: 'rgba(0, 255, 136, 0.15)', border: '1px solid #00ff88', padding: '0.75rem 1.5rem', borderRadius: '12px', fontWeight: 'bold', color: '#00ff88' }}>
-                    {activeDuty.driverName} (Kierowca)
-                  </div>
-                )}
-                {activeDuty.squad?.map(member => (
-                  <div key={member.id} style={{ background: 'rgba(15, 23, 42, 0.6)', border: '1px solid var(--surface-border)', padding: '0.75rem 1.5rem', borderRadius: '12px', fontWeight: 'bold', color: 'var(--text-primary)' }}>
-                    {member.firstName} {member.lastName}
-                  </div>
-                ))}
               </div>
-            )}
+            ))}
           </div>
         )}
 

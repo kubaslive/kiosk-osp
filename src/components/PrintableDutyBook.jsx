@@ -143,12 +143,29 @@ const PrintableDutyBook = ({ date, reports }) => {
             </table>
 
             <div className="notes-section">
-              Dodatkowe notatki:
-              <div className="note-line"></div>
-              <div className="note-line"></div>
-              <div className="note-line"></div>
-              <div className="note-line"></div>
-              <div className="note-line"></div>
+              <div style={{ fontWeight: 'bold', marginBottom: '10px' }}>Dodatkowe notatki:</div>
+              {pageReports.filter(r => r && r.generalNotes).length > 0 ? (
+                pageReports.map((r, idx) => {
+                  if (r && r.generalNotes) {
+                    return (
+                      <div key={idx} style={{ marginBottom: '8px', paddingBottom: '4px', borderBottom: '1px dashed #94a3b8', fontSize: '0.85rem' }}>
+                        {r.generalNotes.split('\n').map((line, lidx) => (
+                           <div key={lidx}>{line}</div>
+                        ))}
+                      </div>
+                    );
+                  }
+                  return null;
+                })
+              ) : (
+                <>
+                  <div className="note-line"></div>
+                  <div className="note-line"></div>
+                  <div className="note-line"></div>
+                  <div className="note-line"></div>
+                  <div className="note-line"></div>
+                </>
+              )}
             </div>
 
             <div className="signature-section">

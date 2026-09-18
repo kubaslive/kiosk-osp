@@ -6,6 +6,7 @@ import { collection, query, orderBy, onSnapshot, doc, setDoc, deleteDoc, addDoc,
 import { db as primaryDb } from '../firebase'; // Baza danych z uprawnieniami zalogowanego Admina
 import { logSystemAction } from '../utils/logger';
 import PrintableDutyBook from './PrintableDutyBook';
+import Tooltip from './Tooltip';
 
 // Zapasowa instancja aplikacji tylko do rejestracji nowych użytkowników
 const secondaryApp = initializeApp({
@@ -40,6 +41,14 @@ function AdminPanel({ user }) {
   const [logsList, setLogsList] = useState([]);
   const [stats, setStats] = useState({ totalReports: 0, totalEvents: 0 });
   const [vehicleStatuses, setVehicleStatuses] = useState({});
+  const [newVehicleName, setNewVehicleName] = useState('');
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear().toString());
+  const [rankingSearchTerm, setRankingSearchTerm] = useState('');
+  const [rankingSortField, setRankingSortField] = useState('totalScore');
+  const [rankingSortDesc, setRankingSortDesc] = useState(true);
+  const [rankingMinEvents, setRankingMinEvents] = useState(null);
+  const [rankingMinDuties, setRankingMinDuties] = useState(null);
+  const [rankingMinDutyHours, setRankingMinDutyHours] = useState(null);
   
   // Zwijanie sekcji w panelu
   const [expandedSections, setExpandedSections] = useState({
@@ -83,6 +92,26 @@ function AdminPanel({ user }) {
        logSystemAction(user, 'ZMIANA_STATUSU_POJAZDU', `Zmieniono status pojazdu ${vehName}: ${newVal ? 'Wycofany' : 'W podziale'}`);
     } catch(e) {
        alert("Błąd zmiany statusu pojazdu!");
+    }
+  };
+
+  const handleAddVehicle = async (e) => {
+    e.preventDefault();
+    if (!newVehicleName.trim()) return;
+    const vehName = newVehicleName.trim();
+    if (vehicleStatuses[vehName]) {
+      alert("Taki pojazd już istnieje!");
+      return;
+    }
+    try {
+      await setDoc(doc(primaryDb, 'system_config', 'vehicles'), {
+        [vehName]: { isOutOfService: false }
+      }, { merge: true });
+      setVehicleStatuses(prev => ({ ...prev, [vehName]: { isOutOfService: false } }));
+      setNewVehicleName('');
+      logSystemAction(user, 'DODANIE_POJAZDU', `Dodano nowy pojazd do podziału: ${vehName}`);
+    } catch (e) {
+      alert("Błąd podczas dodawania pojazdu.");
     }
   };
 
@@ -152,8 +181,20 @@ function AdminPanel({ user }) {
       setLogsList(l);
     });
 
-    // Pobieranie raportów do statystyk
-    const qReports = query(collection(primaryDb, 'duty_reports'));
+    return () => {
+      unsubscribeUsers();
+      unsubscribeLogs();
+    };
+  }, []);
+
+  useEffect(() => {
+    // Pobieranie raportów do statystyk z filtrem rocznym
+    let qReports;
+    if (selectedYear === 'ALL') {
+      qReports = query(collection(primaryDb, 'duty_reports'));
+    } else {
+      qReports = query(collection(primaryDb, 'duty_reports'), where('date', '>=', `${selectedYear}-01-01`), where('date', '<=', `${selectedYear}-12-31`));
+    }
     const unsubscribeReports = onSnapshot(qReports, (snapshot) => {
       let rCount = 0;
       let eCount = 0;
@@ -226,11 +267,9 @@ function AdminPanel({ user }) {
     });
 
     return () => {
-      unsubscribeUsers();
-      unsubscribeLogs();
       unsubscribeReports();
     };
-  }, []);
+  }, [selectedYear]);
 
   const handleCreateUser = async (e) => {
     e.preventDefault();
@@ -370,7 +409,25 @@ function AdminPanel({ user }) {
   return (
     <>
       {printRoot && createPortal(<PrintableDutyBook date={printDate} reports={printReports} />, printRoot)}
-      <div className="no-print" style={{ marginTop: '2rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+      
+      {/* GLOBALNY FILTR ROKU */}
+      <div className="no-print" style={{ marginTop: '1rem', display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '1rem' }}>
+        <label style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Filtruj dane z roku:</label>
+        <select 
+          value={selectedYear} 
+          onChange={e => setSelectedYear(e.target.value)}
+          style={{ padding: '0.5rem', borderRadius: '8px', backgroundColor: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', color: 'white', fontWeight: 'bold' }}
+        >
+          <option value="2024">2024</option>
+          <option value="2025">2025</option>
+          <option value="2026">2026</option>
+          <option value="2027">2027</option>
+          <option value="2028">2028</option>
+          <option value="ALL">Wszystkie lata</option>
+        </select>
+      </div>
+
+      <div className="no-print" style={{ marginTop: '1rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
         
       {/* SEKCJA: STATYSTYKI KPI */}
       {user.role !== 'Dowódca' && (
@@ -448,7 +505,9 @@ function AdminPanel({ user }) {
               />
             </div>
             <div>
-              <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem' }}>Rola w systemie (Dostęp)</label>
+              <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem' }}>
+                Rola w systemie (Dostęp) <Tooltip text="Brak dostępu — strażak pojawia się tylko w kafelkach obsady, nie może się logować. Dowódca Zastępu — może się zalogować i tworzyć raporty dyżurów. Zarząd — pełny dostęp administracyjny." position="right" />
+              </label>
               <select 
                 value={role} 
                 onChange={(e) => setRole(e.target.value)}
@@ -462,7 +521,9 @@ function AdminPanel({ user }) {
           </div>
 
           <div style={{ marginTop: '0.5rem' }}>
-            <label style={{ display: 'block', marginBottom: '1rem', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Uprawnienia bojowe (Skład Zastępu)</label>
+            <label style={{ display: 'block', marginBottom: '1rem', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+              Uprawnienia bojowe (Skład Zastępu) <Tooltip text="Decyduje o tym, w jakich funkcjach strażak może być dodany do obsady dyżuru. Dowódca może tworzyć raporty i zakończyć dyżur. Stażysta jest oznaczony jako uczący się." />
+            </label>
             <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
               <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', padding: '0.5rem 1rem', background: 'rgba(255,255,255,0.05)', borderRadius: '8px' }}>
                 <input type="checkbox" checked={isRatownik} onChange={e => setIsRatownik(e.target.checked)} style={{ accentColor: '#00ccff' }} /> Ratownik
@@ -571,14 +632,14 @@ function AdminPanel({ user }) {
       {user.role !== 'Dowódca' && (
       <div style={{ backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)', overflow: 'hidden' }}>
         <div onClick={() => toggleSection('ekwiwalent')} style={{ padding: '1.5rem', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h3 style={{ margin: 0, color: '#ff33ff' }}>💸 Moduł Rozliczenia Ekwiwalentu</h3>
+          <h3 style={{ margin: 0, color: '#ff33ff' }}>💸 Moduł Rozliczenia Ekwiwalentu <Tooltip text="Ekwiwalent to środki pieniężne przysługujące strażakom-ochotnikom za udział w akcjach i ćwiczeniach. Ustaw stawkę godzinową i wybierz okres rozliczeniowy." position="right" /></h3>
           <span style={{ transform: expandedSections.ekwiwalent ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s', color: '#ff33ff' }}>▼</span>
         </div>
         {expandedSections.ekwiwalent && (
           <div style={{ padding: '0 1.5rem 1.5rem 1.5rem' }}>
             <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem', flexWrap: 'wrap', backgroundColor: 'rgba(0,0,0,0.3)', padding: '1rem', borderRadius: '8px' }}>
               <div>
-                <label style={{ display: 'block', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Stawka (zł/h)</label>
+                <label style={{ display: 'block', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Stawka (zł/h) <Tooltip text="Kwota w złotych za każdą rozpozcztą godzinę dyżuru lub akcji. Wg uchwały GMiny, standardowo 8-20 zł/h." /></label>
                 <input type="number" value={ekwRate} onChange={e => setEkwRate(Number(e.target.value))} style={{ padding: '0.5rem', borderRadius: '4px', width: '80px', border: '1px solid rgba(255,255,255,0.2)', backgroundColor: 'rgba(0,0,0,0.5)', color: 'white', textAlign: 'center' }} />
               </div>
               <div>
@@ -605,7 +666,7 @@ function AdminPanel({ user }) {
                   <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.2)' }}>
                     <th style={{ padding: '0.75rem' }}>Strażak</th>
                     <th style={{ padding: '0.75rem', textAlign: 'center' }}>Rozpoczęte Godziny</th>
-                    <th style={{ padding: '0.75rem', textAlign: 'right' }}>Kwota Ekwiwalentu (zł)</th>
+                    <th style={{ padding: '0.75rem', textAlign: 'right' }}>Kwota Ekwiwalentu (zł) <Tooltip text="Obliczona jako: Rozpoćzęte godziny × stawka. Zaokrąglane w górę do pełnej godziny." /></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -671,25 +732,42 @@ function AdminPanel({ user }) {
       {/* SEKCJA: STATUS POJAZDÓW BOJOWYCH */}
       <div style={{ backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)', overflow: 'hidden' }}>
         <div onClick={() => toggleSection('vehicles')} style={{ padding: '1.5rem', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h3 style={{ margin: 0, color: '#ffcc00' }}>🚒 Status Pojazdów Bojowych</h3>
+          <h3 style={{ margin: 0, color: '#ffcc00' }}>🚒 Zarządzanie Flotą Pojazdów</h3>
           <span style={{ transform: expandedSections.vehicles ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s', color: '#ffcc00' }}>▼</span>
         </div>
         {expandedSections.vehicles && (
-          <div style={{ padding: '0 1.5rem 1.5rem 1.5rem', display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
-             {['SF 329-42 GCBA MAN', 'SF 329-41 GBA Renault'].map(veh => {
-                const isOut = vehicleStatuses[veh]?.isOutOfService;
-                return (
-                  <div key={veh} className="glass-card" style={{ flex: 1, minWidth: '250px', padding: '1.5rem', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem', border: `1px solid ${isOut ? 'rgba(239, 68, 68, 0.5)' : 'rgba(0, 255, 136, 0.3)'}`, background: isOut ? 'rgba(239, 68, 68, 0.1)' : 'rgba(0, 255, 136, 0.05)' }}>
-                    <div style={{ fontSize: '1.2rem', fontWeight: 'bold', color: 'white' }}>{veh}</div>
-                    <div style={{ color: isOut ? 'var(--danger-color)' : '#00ff88', fontWeight: 'bold' }}>
-                      {isOut ? '🔴 WYCOFANY Z PODZIAŁU' : '🟢 W PODZIALE BOJOWYM'}
+          <div style={{ padding: '0 1.5rem 1.5rem 1.5rem' }}>
+            {user.role === 'admin' && (
+              <form onSubmit={handleAddVehicle} style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem', backgroundColor: 'rgba(0,0,0,0.3)', padding: '1rem', borderRadius: '8px' }}>
+                <input 
+                  type="text" 
+                  value={newVehicleName} 
+                  onChange={e => setNewVehicleName(e.target.value)} 
+                  placeholder="Nazwa nowego wozu (np. GBA 2.5/16 Kamaz)" 
+                  style={{ flex: 1, padding: '0.75rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.2)', backgroundColor: 'rgba(0,0,0,0.5)', color: 'white' }}
+                />
+                <button type="submit" style={{ padding: '0.75rem 1.5rem', borderRadius: '8px', border: 'none', backgroundColor: '#ffcc00', color: 'black', fontWeight: 'bold', cursor: 'pointer' }}>
+                  + Dodaj Wóz
+                </button>
+              </form>
+            )}
+
+            <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+               {Array.from(new Set([...Object.keys(vehicleStatuses), 'SF 329-42 GCBA MAN', 'SF 329-41 GBA Renault'])).map(veh => {
+                  const isOut = vehicleStatuses[veh]?.isOutOfService;
+                  return (
+                    <div key={veh} className="glass-card" style={{ flex: 1, minWidth: '250px', padding: '1.5rem', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem', border: `1px solid ${isOut ? 'rgba(239, 68, 68, 0.5)' : 'rgba(0, 255, 136, 0.3)'}`, background: isOut ? 'rgba(239, 68, 68, 0.1)' : 'rgba(0, 255, 136, 0.05)' }}>
+                      <div style={{ fontSize: '1.2rem', fontWeight: 'bold', color: 'white', textAlign: 'center' }}>{veh}</div>
+                      <div style={{ color: isOut ? 'var(--danger-color)' : '#00ff88', fontWeight: 'bold' }}>
+                        {isOut ? '🔴 WYCOFANY Z PODZIAŁU' : '🟢 W PODZIALE BOJOWYM'}
+                      </div>
+                      <button onClick={() => toggleVehicleStatus(veh)} style={{ marginTop: '0.5rem', padding: '0.5rem 1rem', borderRadius: '8px', border: 'none', backgroundColor: isOut ? '#00ff88' : 'var(--danger-color)', color: 'black', fontWeight: 'bold', cursor: 'pointer' }}>
+                        {isOut ? 'Przywróć do podziału' : 'Wycofaj pojazd'}
+                      </button>
                     </div>
-                    <button onClick={() => toggleVehicleStatus(veh)} style={{ marginTop: '0.5rem', padding: '0.5rem 1rem', borderRadius: '8px', border: 'none', backgroundColor: isOut ? '#00ff88' : 'var(--danger-color)', color: 'black', fontWeight: 'bold', cursor: 'pointer' }}>
-                      {isOut ? 'Przywróć do podziału' : 'Wycofaj pojazd'}
-                    </button>
-                  </div>
-                );
-             })}
+                  );
+               })}
+            </div>
           </div>
         )}
       </div>
@@ -735,16 +813,83 @@ function AdminPanel({ user }) {
         
         {expandedSections.ranking && (
           <div style={{ padding: '0 1.5rem 1.5rem 1.5rem' }}>
+            {/* Filtry rankingu */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr repeat(4, auto)', gap: '0.75rem', marginBottom: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
+              <input 
+                type="text" 
+                placeholder="🔍 Wyszukaj strażaka..." 
+                value={rankingSearchTerm} 
+                onChange={(e) => setRankingSearchTerm(e.target.value)}
+                style={{ padding: '0.65rem 0.9rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.2)', backgroundColor: 'rgba(0,0,0,0.3)', color: 'white', fontSize: '0.85rem' }}
+              />
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.75rem', whiteSpace: 'nowrap' }}>Min. wyjazdy</span>
+                <input type="number" min="0" placeholder="0"
+                  value={rankingMinEvents ?? ''}
+                  onChange={(e) => setRankingMinEvents(e.target.value === '' ? null : Number(e.target.value))}
+                  style={{ width: '62px', padding: '0.5rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.2)', backgroundColor: 'rgba(0,0,0,0.3)', color: 'white', fontSize: '0.85rem' }}
+                />
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.75rem', whiteSpace: 'nowrap' }}>Min. dyżury</span>
+                <input type="number" min="0" placeholder="0"
+                  value={rankingMinDuties ?? ''}
+                  onChange={(e) => setRankingMinDuties(e.target.value === '' ? null : Number(e.target.value))}
+                  style={{ width: '62px', padding: '0.5rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.2)', backgroundColor: 'rgba(0,0,0,0.3)', color: 'white', fontSize: '0.85rem' }}
+                />
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.75rem', whiteSpace: 'nowrap' }}>Min. h dyżurów</span>
+                <input type="number" min="0" placeholder="0"
+                  value={rankingMinDutyHours ?? ''}
+                  onChange={(e) => setRankingMinDutyHours(e.target.value === '' ? null : Number(e.target.value))}
+                  style={{ width: '62px', padding: '0.5rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.2)', backgroundColor: 'rgba(0,0,0,0.3)', color: 'white', fontSize: '0.85rem' }}
+                />
+              </div>
+              {(rankingSearchTerm || rankingMinEvents !== null || rankingMinDuties !== null || rankingMinDutyHours !== null) && (
+                <button onClick={() => { setRankingSearchTerm(''); setRankingMinEvents(null); setRankingMinDuties(null); setRankingMinDutyHours(null); }}
+                  style={{ padding: '0.5rem 0.9rem', borderRadius: '8px', border: '1px solid rgba(255,80,80,0.4)', backgroundColor: 'rgba(255,80,80,0.1)', color: '#ff6060', cursor: 'pointer', fontSize: '0.8rem', whiteSpace: 'nowrap' }}>
+                  ✕ Resetuj
+                </button>
+              )}
+            </div>
             <div style={{ overflowX: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.9rem' }}>
                 <thead>
                   <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.2)' }}>
-                    <th style={{ padding: '0.75rem', width: '50px', textAlign: 'center' }}>Miejsce</th>
-                    <th style={{ padding: '0.75rem' }}>Imię i Nazwisko</th>
-                    <th style={{ padding: '0.75rem', textAlign: 'center' }}>Wyjazdy</th>
-                    <th style={{ padding: '0.75rem', textAlign: 'center', color: '#00ff88' }}>Czas Wyjazdów</th>
-                    <th style={{ padding: '0.75rem', textAlign: 'center' }}>Dyżury</th>
-                    <th style={{ padding: '0.75rem', textAlign: 'center', color: '#00ccff' }}>Czas Dyżurów</th>
+                    <th style={{ padding: '0.75rem', width: '50px', textAlign: 'center', color: 'rgba(255,255,255,0.5)', fontWeight: 'normal', fontSize: '0.8rem' }}>
+                      Miejsce <Tooltip text="Domyślnie posortowane wg Wyniku = (wyjazdy × 5) + (czas wyjazdów × 2) + godziny dyżurów. Kliknij nagłówek kolumny by zmienić sortowanie." />
+                    </th>
+                    <th
+                      onClick={() => { if (rankingSortField === 'name') { setRankingSortDesc(!rankingSortDesc); } else { setRankingSortField('name'); setRankingSortDesc(false); } }}
+                      style={{ padding: '0.75rem', cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap' }}
+                    >
+                      Imię i Nazwisko {rankingSortField === 'name' ? (rankingSortDesc ? '▼' : '▲') : <span style={{opacity:0.3}}>⇅</span>}
+                    </th>
+                    <th
+                      onClick={() => { if (rankingSortField === 'eventCount') { setRankingSortDesc(!rankingSortDesc); } else { setRankingSortField('eventCount'); setRankingSortDesc(true); } }}
+                      style={{ padding: '0.75rem', textAlign: 'center', cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap' }}
+                    >
+                      Wyjazdy {rankingSortField === 'eventCount' ? (rankingSortDesc ? '▼' : '▲') : <span style={{opacity:0.3}}>⇅</span>}
+                    </th>
+                    <th
+                      onClick={() => { if (rankingSortField === 'eventHours') { setRankingSortDesc(!rankingSortDesc); } else { setRankingSortField('eventHours'); setRankingSortDesc(true); } }}
+                      style={{ padding: '0.75rem', textAlign: 'center', color: '#00ff88', cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap' }}
+                    >
+                      Czas Wyjazdów {rankingSortField === 'eventHours' ? (rankingSortDesc ? '▼' : '▲') : <span style={{opacity:0.3}}>⇅</span>}
+                    </th>
+                    <th
+                      onClick={() => { if (rankingSortField === 'dutyCount') { setRankingSortDesc(!rankingSortDesc); } else { setRankingSortField('dutyCount'); setRankingSortDesc(true); } }}
+                      style={{ padding: '0.75rem', textAlign: 'center', cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap' }}
+                    >
+                      Dyżury {rankingSortField === 'dutyCount' ? (rankingSortDesc ? '▼' : '▲') : <span style={{opacity:0.3}}>⇅</span>}
+                    </th>
+                    <th
+                      onClick={() => { if (rankingSortField === 'dutyHours') { setRankingSortDesc(!rankingSortDesc); } else { setRankingSortField('dutyHours'); setRankingSortDesc(true); } }}
+                      style={{ padding: '0.75rem', textAlign: 'center', color: '#00ccff', cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap' }}
+                    >
+                      Czas Dyżurów {rankingSortField === 'dutyHours' ? (rankingSortDesc ? '▼' : '▲') : <span style={{opacity:0.3}}>⇅</span>}
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -780,14 +925,12 @@ function AdminPanel({ user }) {
                       rankedList.push({ ...u, dutyCount: dCount, eventCount: eCount, dutyHours: dHours, eventHours: eHours, totalScore: eCount * 5 + eHours * 2 + dHours });
                     });
                     
-                    // Dodanie strażaków/dowódców, których nie ma w bazie użytkowników, ale są w raportach!
                     Object.keys(stats.userStats || {}).forEach(key => {
                       if (!matchedKeys.has(key)) {
                         const uStat = stats.userStats[key];
                         const nameParts = (uStat.name || 'Nieznany Strażak').split(' ');
                         const fName = nameParts[0];
                         const lName = nameParts.slice(1).join(' ');
-                        
                         rankedList.push({
                            id: key,
                            firstName: fName,
@@ -801,31 +944,63 @@ function AdminPanel({ user }) {
                       }
                     });
                     
-                    if (rankedList.length === 0) {
-                      return <tr><td colSpan="4" style={{ padding: '1rem', textAlign: 'center' }}>Brak danych do wyświetlenia</td></tr>;
+                    let rankedListFinal = rankedList;
+                    if (rankingSearchTerm.trim() !== '') {
+                      const lowerSearch = rankingSearchTerm.toLowerCase();
+                      rankedListFinal = rankedListFinal.filter(u =>
+                        `${u.firstName} ${u.lastName}`.toLowerCase().includes(lowerSearch)
+                      );
+                    }
+                    if (rankingMinEvents !== null) {
+                      rankedListFinal = rankedListFinal.filter(u => u.eventCount >= rankingMinEvents);
+                    }
+                    if (rankingMinDuties !== null) {
+                      rankedListFinal = rankedListFinal.filter(u => u.dutyCount >= rankingMinDuties);
+                    }
+                    if (rankingMinDutyHours !== null) {
+                      rankedListFinal = rankedListFinal.filter(u => u.dutyHours >= rankingMinDutyHours);
+                    }
+
+                    // Sortowanie
+                    rankedListFinal = [...rankedListFinal].sort((a, b) => {
+                      let aVal, bVal;
+                      if (rankingSortField === 'name') {
+                        aVal = `${a.firstName} ${a.lastName}`.toLowerCase();
+                        bVal = `${b.firstName} ${b.lastName}`.toLowerCase();
+                        return rankingSortDesc ? bVal.localeCompare(aVal) : aVal.localeCompare(bVal);
+                      }
+                      aVal = a[rankingSortField] ?? 0;
+                      bVal = b[rankingSortField] ?? 0;
+                      return rankingSortDesc ? bVal - aVal : aVal - bVal;
+                    });
+
+                    if (rankedListFinal.length === 0) {
+                      return <tr><td colSpan="6" style={{ padding: '1rem', textAlign: 'center', color: 'rgba(255,255,255,0.4)' }}>Brak danych spełniających kryteria filtrowania</td></tr>;
                     }
                     
-                    return rankedList.sort((a, b) => b.totalScore - a.totalScore).map((u, index) => {
+                    return rankedListFinal.map((u, index) => {
                       let medal = '';
-                      if (index === 0 && u.totalScore > 0) medal = '🥇';
-                      else if (index === 1 && u.totalScore > 0) medal = '🥈';
-                      else if (index === 2 && u.totalScore > 0) medal = '🥉';
+                      if (rankingSortField === 'totalScore' || rankingSortField === 'eventCount' || rankingSortField === 'eventHours' || rankingSortField === 'dutyCount' || rankingSortField === 'dutyHours') {
+                        if (index === 0 && u.totalScore > 0) medal = '🥇';
+                        else if (index === 1 && u.totalScore > 0) medal = '🥈';
+                        else if (index === 2 && u.totalScore > 0) medal = '🥉';
+                      }
                       
                       return (
-                        <tr key={u.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', backgroundColor: index < 3 && u.totalScore > 0 ? 'rgba(255,215,0,0.05)' : 'transparent' }}>
+                        <tr key={u.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', backgroundColor: medal ? 'rgba(255,215,0,0.05)' : 'transparent' }}>
                           <td style={{ padding: '0.75rem', textAlign: 'center', fontSize: '1.2rem' }}>
                             {medal || `${index + 1}.`}
                           </td>
-                          <td style={{ padding: '0.75rem', fontWeight: index < 3 && u.totalScore > 0 ? 'bold' : 'normal', color: index === 0 && u.totalScore > 0 ? '#ffaa00' : 'white' }}>
+                          <td style={{ padding: '0.75rem', fontWeight: medal ? 'bold' : 'normal', color: medal === '🥇' ? '#ffaa00' : 'white' }}>
                             {u.firstName} {u.lastName}
                           </td>
-                          <td style={{ padding: '0.75rem', textAlign: 'center', fontWeight: 'bold' }}>
+                          <td style={{ padding: '0.75rem', textAlign: 'center', fontWeight: 'bold', color: rankingSortField === 'eventCount' ? '#fff' : 'rgba(255,255,255,0.8)' }}>
                             {u.eventCount}
                           </td>
                           <td style={{ padding: '0.75rem', textAlign: 'center', color: '#00ff88', fontWeight: 'bold' }}>
                             {u.eventHours > 0 ? `${u.eventHours} h` : '-'}
                           </td>
-                          <td style={{ padding: '0.75rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
+                          <td style={{ padding: '0.75rem', textAlign: 'center', color: rankingSortField === 'dutyCount' ? '#fff' : 'rgba(255,255,255,0.6)' }}>
                             {u.dutyCount}
                           </td>
                           <td style={{ padding: '0.75rem', textAlign: 'center', color: '#00ccff', fontWeight: 'bold' }}>
@@ -858,7 +1033,7 @@ function AdminPanel({ user }) {
             <h2 style={{ margin: 0, color: 'white' }}>Podgląd Wydruku</h2>
             <div style={{ display: 'flex', gap: '1rem' }}>
               <button onClick={() => setShowPrintPreview(false)} style={{ padding: '0.75rem 1.5rem', background: 'rgba(255,255,255,0.1)', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>Anuluj</button>
-              <button onClick={() => { window.print(); setShowPrintPreview(false); }} style={{ padding: '0.75rem 1.5rem', background: '#00ccff', color: '#0f172a', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>🖨️ Potwierdź i Drukuj</button>
+              <button onClick={() => { setTimeout(() => window.print(), 100); setTimeout(() => setShowPrintPreview(false), 2000); }} style={{ padding: '0.75rem 1.5rem', background: '#00ccff', color: '#0f172a', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>🖨️ Potwierdź i Drukuj</button>
             </div>
           </div>
           <div style={{ flex: 1, overflowY: 'auto', background: '#cbd5e1', borderRadius: '8px', padding: '2rem' }}>
