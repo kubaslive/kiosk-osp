@@ -56,6 +56,7 @@ function AdminPanel({ user }) {
   const [printDate, setPrintDate] = useState(new Date().toISOString().split('T')[0]);
   const [printReports, setPrintReports] = useState([]);
   const [printRoot, setPrintRoot] = useState(null);
+  const [showPrintPreview, setShowPrintPreview] = useState(false);
 
   useEffect(() => {
     let el = document.getElementById('print-root');
@@ -99,10 +100,8 @@ function AdminPanel({ user }) {
       reports.sort((a, b) => (a.startTime || '').localeCompare(b.startTime || ''));
       setPrintReports(reports);
       
-      // Opóźnienie na render reacta
-      setTimeout(() => {
-        window.print();
-      }, 500);
+      // Pokazujemy modal podglądu
+      setShowPrintPreview(true);
     } catch(e) {
       alert("Błąd podczas pobierania dyżurów do druku!");
       console.error(e);
@@ -361,6 +360,7 @@ function AdminPanel({ user }) {
       <div className="no-print" style={{ marginTop: '2rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
         
       {/* SEKCJA: STATYSTYKI KPI */}
+      {user.role !== 'Dowódca' && (
       <div style={{ backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)', overflow: 'hidden' }}>
         <div onClick={() => toggleSection('kpi')} style={{ padding: '1.5rem', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <h3 style={{ margin: 0, color: 'white' }}>Wskaźniki Systemowe (KPI)</h3>
@@ -383,8 +383,10 @@ function AdminPanel({ user }) {
           </div>
         )}
       </div>
+      )}
 
       {/* SEKCJA: TWORZENIE / EDYCJA KONT */}
+      {user.email === 'jmartyka@kiosk.osp.pl' && (
       <div style={{ backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)', overflow: 'hidden' }}>
         <div onClick={() => toggleSection('create')} style={{ padding: '1.5rem', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <h3 style={{ margin: 0, color: '#ffaa00' }}>
@@ -484,8 +486,10 @@ function AdminPanel({ user }) {
           </div>
         )}
       </div>
+      )}
 
       {/* SEKCJA: LISTA UŻYTKOWNIKÓW */}
+      {user.email === 'jmartyka@kiosk.osp.pl' && (
       <div style={{ backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)', overflow: 'hidden' }}>
         <div onClick={() => toggleSection('list')} style={{ padding: '1.5rem', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <h3 style={{ margin: 0, color: '#00ccff' }}>👥 Lista Zarejestrowanych Kont</h3>
@@ -548,8 +552,10 @@ function AdminPanel({ user }) {
           </div>
         )}
       </div>
+      )}
 
       {/* SEKCJA: ROZLICZENIE EKWIWALENTU */}
+      {user.role !== 'Dowódca' && (
       <div style={{ backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)', overflow: 'hidden' }}>
         <div onClick={() => toggleSection('ekwiwalent')} style={{ padding: '1.5rem', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <h3 style={{ margin: 0, color: '#ff33ff' }}>💸 Moduł Rozliczenia Ekwiwalentu</h3>
@@ -618,6 +624,7 @@ function AdminPanel({ user }) {
           </div>
         )}
       </div>
+      )}
 
       {/* SEKCJA: KSIĄŻKA PODZIAŁU BOJOWEGO */}
       <div style={{ backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)', overflow: 'hidden' }}>
@@ -675,6 +682,7 @@ function AdminPanel({ user }) {
       </div>
 
       {/* SEKCJA: LOGI SYSTEMOWE */}
+      {user.email === 'jmartyka@kiosk.osp.pl' && (
       <div style={{ backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)', overflow: 'hidden' }}>
         <div onClick={() => toggleSection('logs')} style={{ padding: '1.5rem', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <h3 style={{ margin: 0, color: 'var(--danger-color)' }}>🕵️ Logi Systemowe (Czarna Skrzynka)</h3>
@@ -702,8 +710,10 @@ function AdminPanel({ user }) {
           </div>
         )}
       </div>
+      )}
 
       {/* SEKCJA: ZAAWANSOWANE STATYSTYKI JOT */}
+      {user.role !== 'Dowódca' && (
       <div style={{ backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)', overflow: 'hidden' }}>
         <div onClick={() => toggleSection('ranking')} style={{ padding: '1.5rem', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <h3 style={{ margin: 0, color: '#00ff88' }}>🏆 Ranking Aktywności Strażaków JOT</h3>
@@ -807,6 +817,26 @@ function AdminPanel({ user }) {
           </div>
         )}
       </div>
+      )}
+
+      {showPrintPreview && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          backgroundColor: 'rgba(15,23,42,0.95)', zIndex: 10000,
+          display: 'flex', flexDirection: 'column', padding: '2rem'
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem', background: '#1e293b', padding: '1rem', borderRadius: '12px' }}>
+            <h2 style={{ margin: 0, color: 'white' }}>Podgląd Wydruku</h2>
+            <div style={{ display: 'flex', gap: '1rem' }}>
+              <button onClick={() => setShowPrintPreview(false)} style={{ padding: '0.75rem 1.5rem', background: 'rgba(255,255,255,0.1)', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>Anuluj</button>
+              <button onClick={() => { window.print(); setShowPrintPreview(false); }} style={{ padding: '0.75rem 1.5rem', background: '#00ccff', color: '#0f172a', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>🖨️ Potwierdź i Drukuj</button>
+            </div>
+          </div>
+          <div style={{ flex: 1, overflowY: 'auto', background: '#cbd5e1', borderRadius: '8px', padding: '2rem' }}>
+             <PrintableDutyBook date={printDate} reports={printReports} />
+          </div>
+        </div>
+      )}
 
     </div>
     </>

@@ -65,7 +65,7 @@ function App() {
   if (splash) {
     return (
       <div style={{ width: '100vw', height: '100vh', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', backgroundColor: '#0f172a' }}>
-        <img src="/logo.png" alt="Logo OSP" onError={(e) => e.target.style.display = 'none'} style={{ height: '180px', marginBottom: '2rem', animation: 'pulse 2s infinite', filter: 'drop-shadow(0 0 20px rgba(255,255,255,0.2))' }} />
+        <img src="./logo.png" alt="Logo OSP" onError={(e) => e.target.style.display = 'none'} style={{ height: '180px', marginBottom: '2rem', animation: 'pulse 2s infinite', filter: 'drop-shadow(0 0 20px rgba(255,255,255,0.2))' }} />
         <h1 style={{ fontSize: '3rem', margin: '0 0 1rem 0', color: '#fff', textShadow: '0 4px 10px rgba(0,0,0,0.5)' }}>
           System <span style={{ color: '#00ff88' }}>ST-OSP</span>
         </h1>
@@ -77,7 +77,7 @@ function App() {
         </div>
         <div style={{ fontSize: '1.1rem', color: 'rgba(255,255,255,0.6)', marginTop: '1rem', letterSpacing: '1px' }}>Ładowanie modułów strażackich...</div>
         <div style={{ position: 'absolute', bottom: '2rem', color: 'rgba(255,255,255,0.2)', fontSize: '0.9rem' }}>
-          v1.0.0 beta | System Zarządzania Zmianą
+          v1.0.6 beta | System Zarządzania Zmianą
         </div>
       </div>
     );

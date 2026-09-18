@@ -1,7 +1,7 @@
 /* Style dla Książki Podziału używane tylko podczas drukowania */
 
 .printable-duty-book {
-  display: none; /* Ukryte w trybie normalnym, pokazujemy tylko przez @media print w index.css lub po ustawieniu stanu drukuj */
+  display: block; 
   font-family: "Times New Roman", Times, serif; /* Klasyczny font dla dokumentów */
   color: black;
   background: white;
@@ -9,7 +9,6 @@
 
 .printable-duty-book .duty-page {
   width: 210mm;
-  min-height: 297mm;
   padding: 15mm;
   margin: 0 auto;
   background: white;
@@ -143,4 +142,10 @@
   text-align: right;
   font-size: 9pt;
   margin-top: 30px;
+}
+
+@media print {
+  .printable-duty-book {
+    display: block !important;
+  }
 }

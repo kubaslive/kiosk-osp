@@ -1,7 +1,7 @@
 {
   "name": "frontend",
   "private": true,
-  "version": "1.0.4",
+  "version": "1.0.6",
   "author": "Jakub Martyka <jmartyka@kiosk.osp.pl>",
   "description": "System Dowodzenia i Kiosk dla Jednostek OSP",
   "copyright": "Copyright © 2026 OSP",
@@ -14,7 +14,7 @@
     "preview": "vite preview",
     "electron:start": "cross-env NODE_ENV=development electron .",
     "electron:dev": "concurrently -k \"npm run dev\" \"npm run electron:start\"",
-    "build:win": "npm run build && electron-builder --win --x64 && cp \"dist-electron/SWD OSP Kiosk Setup 1.0.0.exe\" ~/Desktop/Kiosk_OSP/ || true",
+    "build:win": "npm run build && electron-builder --win --x64 && cp \"dist-electron/SWD OSP Kiosk Setup 1.0.6.exe\" ~/Desktop/Kiosk_OSP/ || true",
     "deploy-update": "npm run build && electron-builder --win --x64 --publish always"
   },
   "dependencies": {

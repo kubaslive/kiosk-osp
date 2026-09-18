@@ -17,6 +17,10 @@ function Dashboard({ user, onLogout }) {
   const [isHistorical, setIsHistorical] = useState(false);
   const [showChangelog, setShowChangelog] = useState(false);
   const [appVersion, setAppVersion] = useState('');
+  
+  // Stan auto-updatera
+  const [updateStatus, setUpdateStatus] = useState(null); // 'checking', 'available', 'downloading', 'downloaded', 'error'
+  const [updateProgress, setUpdateProgress] = useState(0);
 
   useEffect(() => {
     if (window.require) {
@@ -24,6 +28,29 @@ function Dashboard({ user, onLogout }) {
         const { ipcRenderer } = window.require('electron');
         const ver = ipcRenderer.sendSync('get-app-version');
         setAppVersion(ver);
+
+        ipcRenderer.on('update-available', () => setUpdateStatus('available'));
+        ipcRenderer.on('update-not-available', () => {
+          setUpdateStatus(null);
+          alert('Posiadasz najnowszą wersję aplikacji.');
+        });
+        ipcRenderer.on('download-progress', (event, progressObj) => {
+          setUpdateStatus('downloading');
+          setUpdateProgress(Math.floor(progressObj.percent));
+        });
+        ipcRenderer.on('update-downloaded', () => setUpdateStatus('downloaded'));
+        ipcRenderer.on('update-error', (event, err) => {
+          setUpdateStatus('error');
+          console.error('Update error:', err);
+        });
+
+        return () => {
+          ipcRenderer.removeAllListeners('update-available');
+          ipcRenderer.removeAllListeners('update-not-available');
+          ipcRenderer.removeAllListeners('download-progress');
+          ipcRenderer.removeAllListeners('update-downloaded');
+          ipcRenderer.removeAllListeners('update-error');
+        };
       } catch (e) {
         console.warn('Nie można pobrać wersji aplikacji', e);
       }
@@ -34,13 +61,20 @@ function Dashboard({ user, onLogout }) {
     if (window.require) {
       try {
         const { ipcRenderer } = window.require('electron');
+        setUpdateStatus('checking');
         ipcRenderer.send('check-for-updates');
-        alert("Sprawdzam dostępność aktualizacji na serwerze... Jeśli jest dostępna nowa wersja, Kiosk pobierze ją w tle i zaktualizuje się przy kolejnym uruchomieniu.");
       } catch (e) {
         alert("Wystąpił błąd podczas sprawdzania aktualizacji.");
       }
     } else {
       alert("Sprawdzanie aktualizacji działa tylko w aplikacji Kiosk (nie w oknie przeglądarki).");
+    }
+  };
+
+  const handleRestartApp = () => {
+    if (window.require) {
+      const { ipcRenderer } = window.require('electron');
+      ipcRenderer.send('restart-app');
     }
   };
 
@@ -124,6 +158,11 @@ function Dashboard({ user, onLogout }) {
   };
 
   const handleEndDuty = async () => {
+    if (activeDuty.createdByUid !== user.id && user.role !== 'Admin' && user.email !== 'jmartyka@kiosk.osp.pl') {
+      alert("Tylko dowódca, który rozpoczął ten dyżur (lub Admin) może go zakończyć!");
+      return;
+    }
+
     if (window.confirm('Czy na pewno chcesz zakończyć bieżący dyżur? Pamiętaj o sprawdzeniu porządków.')) {
       setEditingReport(activeDuty);
       setIsEndingDuty(true);
@@ -136,7 +175,7 @@ function Dashboard({ user, onLogout }) {
     <div className="glass-card dashboard-card">
       <div className="dashboard-header">
         <div className="user-info">
-          <img src="/logo.png" alt="Logo OSP" onError={(e) => e.target.style.display = 'none'} style={{ height: '50px', objectFit: 'contain', marginRight: '0.5rem' }} />
+          <img src="./logo.png" alt="Logo OSP" onError={(e) => e.target.style.display = 'none'} style={{ height: '50px', objectFit: 'contain', marginRight: '0.5rem' }} />
           <div className="avatar">
             {getInitials(user.name)}
           </div>
@@ -293,7 +332,8 @@ function Dashboard({ user, onLogout }) {
         </button>
       </div>
 
-      {user.role === 'admin' && (
+      {/* PANEL ADMINA DLA ZARZĄDU / DOWÓDCÓw / ADMINA */}
+      {(user.role === 'Admin' || user.role === 'admin' || user.role === 'Zarząd' || user.role === 'Dowódca') && (
         <div style={{ marginTop: '2rem' }}>
           <AdminPanel user={user} />
         </div>
@@ -310,7 +350,7 @@ function Dashboard({ user, onLogout }) {
             
             <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem', textAlign: 'left' }}>
               <div>
-                <h3 style={{ color: 'white', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '0.5rem' }}>Wersja 1.0 (Aktualizacja Live Duty)</h3>
+                <h3 style={{ color: 'white', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '0.5rem' }}>Wersja 1.0.5 (Wydruk + Wygaszacz + Konta)</h3>
                 <ul style={{ color: 'var(--text-secondary)', lineHeight: '1.6', paddingLeft: '1.5rem', marginTop: '1rem' }}>
                   <li><strong>Tryb Live:</strong> Możliwość rozpoczęcia dyżuru na żywo – czas liczony jest automatycznie, a dyżur staje się "Aktywny".</li>
                   <li><strong>Wygaszacz ekranu:</strong> Nowy, elegancki ekran blokady (Standby Mode) z podglądem pełnej obsady oraz pojazdu.</li>
@@ -325,14 +365,53 @@ function Dashboard({ user, onLogout }) {
         </div>
       )}
 
-      <div style={{ marginTop: '2rem', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '2rem', fontSize: '0.85rem', color: 'rgba(255,255,255,0.3)' }}>
-        <div>Wersja 1.0 beta, autor Jakub Martyka</div>
-        <button 
-          onClick={() => setShowChangelog(true)} 
-          style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.2)', color: 'white', padding: '0.4rem 1rem', borderRadius: '8px', cursor: 'pointer' }}
-        >
-          📢 Co nowego?
-        </button>
+      <div style={{ marginTop: '2rem', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', gap: '1rem', fontSize: '0.85rem', color: 'rgba(255,255,255,0.3)', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: '2rem', alignItems: 'center' }}>
+          <div>Wersja {appVersion || '1.0.5'}, autor Jakub Martyka</div>
+          {!updateStatus && (
+            <button 
+              onClick={handleCheckUpdates}
+              style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.2)', color: 'white', padding: '0.4rem 1rem', borderRadius: '8px', cursor: 'pointer' }}
+            >
+              🔄 Sprawdź aktualizacje
+            </button>
+          )}
+          {updateStatus === 'checking' && (
+            <div style={{ color: '#ffaa00' }}>Sprawdzanie aktualizacji...</div>
+          )}
+          {updateStatus === 'available' && (
+            <div style={{ color: '#00c2ff' }}>Znaleziono aktualizację. Przygotowywanie...</div>
+          )}
+          {updateStatus === 'downloaded' && (
+            <button 
+              onClick={handleRestartApp}
+              style={{ background: '#00ff88', border: 'none', color: '#0f172a', fontWeight: 'bold', padding: '0.4rem 1rem', borderRadius: '8px', cursor: 'pointer', animation: 'pulse 2s infinite' }}
+            >
+              ✅ Zaktualizuj teraz (Restart)
+            </button>
+          )}
+          {updateStatus === 'error' && (
+            <div style={{ color: 'var(--danger-color)' }}>Błąd aktualizacji</div>
+          )}
+          <button 
+            onClick={() => setShowChangelog(true)} 
+            style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.2)', color: 'white', padding: '0.4rem 1rem', borderRadius: '8px', cursor: 'pointer' }}
+          >
+            📢 Co nowego?
+          </button>
+        </div>
+        
+        {updateStatus === 'downloading' && (
+          <div style={{ width: '300px', background: 'rgba(0,0,0,0.3)', borderRadius: '10px', padding: '0.5rem', marginTop: '0.5rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.3rem', color: '#00ff88' }}>
+              <span>Pobieranie nowej wersji...</span>
+              <span>{updateProgress}%</span>
+            </div>
+            <div style={{ width: '100%', height: '8px', background: 'rgba(255,255,255,0.1)', borderRadius: '4px', overflow: 'hidden' }}>
+              <div style={{ width: `${updateProgress}%`, height: '100%', background: '#00ff88', transition: 'width 0.3s ease' }}></div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

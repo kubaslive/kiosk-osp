@@ -135,8 +135,8 @@ const PrintableDutyBook = ({ date, reports }) => {
                     <td>{ev.notes || ''}</td>
                     <td className="center-align">{ev.outTime || ''}</td>
                     <td className="center-align">{ev.inTime || ''}</td>
-                    <td className="center-align">{ev.jrg ? ev.jrg.substring(ev.jrg.length - 4) : ''}</td>
-                    <td className="center-align">{ev.reportNumber || ''}</td>
+                    <td className="center-align">{ev.reportNumber ? ((ev.jrg === 'JRG 2' ? '1201002-' : ev.jrg === 'JRG 3' ? '1201003-' : '1201001-') + ev.reportNumber) : ''}</td>
+                    <td className="center-align">{ev.internalReportNumber || ''}</td>
                   </tr>
                 ))}
               </tbody>

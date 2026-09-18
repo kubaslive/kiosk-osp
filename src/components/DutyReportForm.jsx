@@ -212,7 +212,7 @@ function DutyReportForm({ user, onCancel, initialData, isEndingDuty, isHistorica
             {isHistorical && !initialData ? 'Wprowadzanie Dyżuru Archiwalnego' : (isEndingDuty ? 'Zakończenie Dyżuru' : (initialData ? 'Edycja Dyżuru' : (isAlarmOnly ? 'Nowy Raport z Alarmowania' : 'Rozpoczęcie Nowego Dyżuru')))}
           </h2>
           <div className="subtitle" style={{ margin: 0 }}>
-            {user.role === 'admin' ? (
+            {(user.role === 'admin' || user.role === 'Admin' || user.role === 'Zarząd') ? (
               <div style={{ marginTop: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 Wypełnia Dowódca: 
                 <select 
@@ -225,7 +225,7 @@ function DutyReportForm({ user, onCancel, initialData, isEndingDuty, isHistorica
                   disabled={isEndingDuty}
                   style={{ background: 'rgba(0,0,0,0.5)', border: '1px solid var(--primary-color)', borderRadius: '6px', padding: '0.3rem 0.5rem', color: 'white', outline: 'none' }}
                 >
-                  {allUsers.map(u => (
+                  {allUsers.filter(u => u.combatRoles?.isDowodca || u.id === commanderId).map(u => (
                     <option key={u.id} value={u.id}>{u.firstName} {u.lastName}</option>
                   ))}
                 </select>
@@ -349,10 +349,14 @@ function DutyReportForm({ user, onCancel, initialData, isEndingDuty, isHistorica
                 })}
               </div>
             </div>
+          </>
+        )}
 
-            <div style={{ background: 'rgba(0,0,0,0.2)', padding: '1.5rem', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.05)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-                <h3 style={{ fontSize: '1.1rem', color: 'var(--text-secondary)', margin: 0 }}>4. Zdarzenia / Wyjazdy</h3>
+        {/* Sekcja Wyjazdów - widoczna przy zakańczaniu, edycji, archiwum lub alarmie */}
+        {(isEndingDuty || isHistorical || initialData || isAlarmOnly) && (
+          <div style={{ background: 'rgba(0,0,0,0.2)', padding: '1.5rem', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.05)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+              <h3 style={{ fontSize: '1.1rem', color: 'var(--text-secondary)', margin: 0 }}>Zdarzenia / Wyjazdy</h3>
               </div>
               {events.map((event, index) => (
                 <div key={index} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid var(--surface-border)', borderRadius: '12px', padding: '1.5rem', marginBottom: '1rem' }}>
@@ -403,6 +407,16 @@ function DutyReportForm({ user, onCancel, initialData, isEndingDuty, isHistorica
                         />
                       </div>
                     </div>
+                    <div className="form-group">
+                      <label>Numer wyjazdu wewn. OSP</label>
+                      <input 
+                        type="text" 
+                        placeholder="np. 45/2026" 
+                        value={event.internalReportNumber || ''} 
+                        onChange={e => updateEvent(index, 'internalReportNumber', e.target.value)} 
+                        style={{ width: '100%', padding: '0.875rem' }}
+                      />
+                    </div>
                   </div>
                   
                   <div className="form-group" style={{ marginBottom: '1rem' }}>
@@ -420,7 +434,6 @@ function DutyReportForm({ user, onCancel, initialData, isEndingDuty, isHistorica
                 + DODAJ ZDARZENIE (WYJAZD)
               </button>
             </div>
-          </>
         )}
 
         {/* Sekcja porządków pokazana na końcu dyżuru LUB w trybie archiwalnym / edycji gotowego dyżuru */}

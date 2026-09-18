@@ -139,16 +139,18 @@ function Login() {
             <div style={{ display: 'flex', gap: '2rem', color: 'white', fontSize: '1.4rem', flexWrap: 'wrap', justifyContent: 'center' }}>
               <div>Pojazd: <strong style={{ color: 'var(--primary-color)' }}>{activeDuty.vehicle}</strong></div>
               <div>Od: <strong style={{ color: '#00ff88' }}>{activeDuty.startTime}</strong></div>
-              {activeDuty.driverName && (
-                <div>Kierowca: <strong style={{ color: '#00ff88' }}>{activeDuty.driverName}</strong></div>
-              )}
             </div>
 
-            {((activeDuty.squad && activeDuty.squad.length > 0) || activeDuty.creatorName) && (
+            {((activeDuty.squad && activeDuty.squad.length > 0) || activeDuty.creatorName || activeDuty.driverName) && (
               <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', justifyContent: 'center', marginTop: '1rem', borderTop: '1px solid var(--surface-border)', paddingTop: '1.5rem', width: '100%' }}>
                 {activeDuty.creatorName && (
                   <div style={{ background: 'rgba(255, 170, 0, 0.15)', border: '1px solid #ffaa00', padding: '0.75rem 1.5rem', borderRadius: '12px', fontWeight: 'bold', color: '#ffaa00' }}>
                     {activeDuty.creatorName} (Dowódca)
+                  </div>
+                )}
+                {activeDuty.driverName && (
+                  <div style={{ background: 'rgba(0, 255, 136, 0.15)', border: '1px solid #00ff88', padding: '0.75rem 1.5rem', borderRadius: '12px', fontWeight: 'bold', color: '#00ff88' }}>
+                    {activeDuty.driverName} (Kierowca)
                   </div>
                 )}
                 {activeDuty.squad?.map(member => (
@@ -171,7 +173,7 @@ function Login() {
   return (
     <div className="glass-card">
       <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
-        <img src="/logo.png" alt="Logo OSP" onError={(e) => e.target.style.display = 'none'} style={{ height: '100px', marginBottom: '1.5rem', objectFit: 'contain' }} />
+        <img src="./logo.png" alt="Logo OSP" onError={(e) => e.target.style.display = 'none'} style={{ height: '100px', marginBottom: '1.5rem', objectFit: 'contain' }} />
         <h2>System ST-OSP</h2>
         <p className="subtitle">Zaloguj się, aby rozpocząć dyżur</p>
       </div>
@@ -207,8 +209,8 @@ function Login() {
         </button>
       </form>
 
-      <div style={{ marginTop: '2rem', textAlign: 'center', fontSize: '0.85rem', color: 'rgba(255,255,255,0.3)' }}>
-        Wersja 1.0 beta, autor Jakub Martyka
+      <div style={{ marginTop: '2rem', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+        Wersja 1.0.5 beta, autor Jakub Martyka
       </div>
     </div>
   );

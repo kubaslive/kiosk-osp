@@ -5,8 +5,27 @@ const { autoUpdater } = require('electron-updater');
 // Auto-aktualizacje w tle
 autoUpdater.autoDownload = true;
 autoUpdater.autoInstallOnAppQuit = true;
+
+let mainWindow;
+
+autoUpdater.on('update-available', (info) => {
+  if (mainWindow) mainWindow.webContents.send('update-available', info);
+});
+
+autoUpdater.on('update-not-available', (info) => {
+  if (mainWindow) mainWindow.webContents.send('update-not-available', info);
+});
+
+autoUpdater.on('download-progress', (progressObj) => {
+  if (mainWindow) mainWindow.webContents.send('download-progress', progressObj);
+});
+
 autoUpdater.on('update-downloaded', (info) => {
-  // Opcjonalnie: można tu wysłać event do frontendu, że paczka jest gotowa
+  if (mainWindow) mainWindow.webContents.send('update-downloaded', info);
+});
+
+autoUpdater.on('error', (err) => {
+  if (mainWindow) mainWindow.webContents.send('update-error', err.message);
 });
 
 function createWindow() {
@@ -30,6 +49,8 @@ function createWindow() {
   } else {
     win.loadFile(path.join(__dirname, 'dist', 'index.html'));
   }
+  
+  mainWindow = win;
 }
 
 // Obsługa IPC dla aktualizacji z frontendu
@@ -39,6 +60,10 @@ ipcMain.on('get-app-version', (event) => {
 
 ipcMain.on('check-for-updates', () => {
   autoUpdater.checkForUpdatesAndNotify();
+});
+
+ipcMain.on('restart-app', () => {
+  autoUpdater.quitAndInstall();
 });
 
 app.whenReady().then(() => {
