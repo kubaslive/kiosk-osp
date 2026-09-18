@@ -173,7 +173,7 @@ function AdminPanel({ user }) {
         }
 
         // Obliczanie czasu (za każdą rozpoczętą godzinę AKCJI / WYJAZDU)
-        let hours = 0;
+        let eventHours = 0;
         if (data.events && Array.isArray(data.events)) {
           data.events.forEach(ev => {
             if (ev.outTime && ev.inTime) {
@@ -181,11 +181,22 @@ function AdminPanel({ user }) {
                const [h2, m2] = ev.inTime.split(':').map(Number);
                let diffMins = (h2 * 60 + m2) - (h1 * 60 + m1);
                if (diffMins < 0) diffMins += 24 * 60; // Przejście przez północ
-               hours += Math.ceil(diffMins / 60);
+               eventHours += Math.ceil(diffMins / 60);
             }
           });
         }
         
+        // Obliczanie czasu dyżuru
+        let dutyHours = 0;
+        if (data.startTime && data.endTime) {
+            const [h1, m1] = data.startTime.split(':').map(Number);
+            const [h2, m2] = data.endTime.split(':').map(Number);
+            let diffMins = (h2 * 60 + m2) - (h1 * 60 + m1);
+            if (diffMins < 0) diffMins += 24 * 60;
+            // Zapisujemy jako dziesiętne np 1.5h
+            dutyHours += diffMins / 60; 
+        }
+
         let reportYear = new Date().getFullYear();
         let reportQuarter = 1;
         if (data.date) {
@@ -195,16 +206,18 @@ function AdminPanel({ user }) {
         }
 
         participants.forEach(pid => {
-           if (!uStats[pid]) uStats[pid] = { dutyCount: 0, eventCount: 0, quarters: {}, years: {} };
+           if (!uStats[pid]) uStats[pid] = { dutyCount: 0, eventCount: 0, eventHours: 0, dutyHours: 0, quarters: {}, years: {} };
            uStats[pid].dutyCount += 1;
            uStats[pid].eventCount += eventsCount;
+           uStats[pid].eventHours += eventHours;
+           uStats[pid].dutyHours += dutyHours;
            
            if (!uStats[pid].years[reportYear]) uStats[pid].years[reportYear] = 0;
-           uStats[pid].years[reportYear] += hours;
+           uStats[pid].years[reportYear] += eventHours;
            
            const qKey = `${reportYear}-Q${reportQuarter}`;
            if (!uStats[pid].quarters[qKey]) uStats[pid].quarters[qKey] = 0;
-           uStats[pid].quarters[qKey] += hours;
+           uStats[pid].quarters[qKey] += eventHours;
            
            if (pid === data.createdByUid && data.creatorName) uStats[pid].name = data.creatorName;
         });
@@ -728,8 +741,10 @@ function AdminPanel({ user }) {
                   <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.2)' }}>
                     <th style={{ padding: '0.75rem', width: '50px', textAlign: 'center' }}>Miejsce</th>
                     <th style={{ padding: '0.75rem' }}>Imię i Nazwisko</th>
-                    <th style={{ padding: '0.75rem', textAlign: 'center' }}>Wyjazdy (Zdarzenia)</th>
-                    <th style={{ padding: '0.75rem', textAlign: 'center' }}>Liczba Dyżurów</th>
+                    <th style={{ padding: '0.75rem', textAlign: 'center' }}>Wyjazdy</th>
+                    <th style={{ padding: '0.75rem', textAlign: 'center', color: '#00ff88' }}>Czas Wyjazdów</th>
+                    <th style={{ padding: '0.75rem', textAlign: 'center' }}>Dyżury</th>
+                    <th style={{ padding: '0.75rem', textAlign: 'center', color: '#00ccff' }}>Czas Dyżurów</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -741,22 +756,28 @@ function AdminPanel({ user }) {
                       const fullName = `${u.firstName} ${u.lastName}`;
                       let dCount = 0;
                       let eCount = 0;
+                      let dHours = 0;
+                      let eHours = 0;
                       
                       if (stats.userStats?.[u.id]) {
-                         dCount += stats.userStats[u.id].dutyCount;
-                         eCount += stats.userStats[u.id].eventCount;
+                         dCount += stats.userStats[u.id].dutyCount || 0;
+                         eCount += stats.userStats[u.id].eventCount || 0;
+                         dHours += stats.userStats[u.id].dutyHours || 0;
+                         eHours += stats.userStats[u.id].eventHours || 0;
                          matchedKeys.add(u.id);
                       }
                       
                       Object.keys(stats.userStats || {}).forEach(key => {
                          if (key !== u.id && stats.userStats[key].name === fullName) {
-                             dCount += stats.userStats[key].dutyCount;
-                             eCount += stats.userStats[key].eventCount;
+                             dCount += stats.userStats[key].dutyCount || 0;
+                             eCount += stats.userStats[key].eventCount || 0;
+                             dHours += stats.userStats[key].dutyHours || 0;
+                             eHours += stats.userStats[key].eventHours || 0;
                              matchedKeys.add(key);
                          }
                       });
 
-                      rankedList.push({ ...u, dutyCount: dCount, eventCount: eCount, totalScore: eCount * 2 + dCount });
+                      rankedList.push({ ...u, dutyCount: dCount, eventCount: eCount, dutyHours: dHours, eventHours: eHours, totalScore: eCount * 5 + eHours * 2 + dHours });
                     });
                     
                     // Dodanie strażaków/dowódców, których nie ma w bazie użytkowników, ale są w raportach!
@@ -771,9 +792,11 @@ function AdminPanel({ user }) {
                            id: key,
                            firstName: fName,
                            lastName: lName,
-                           dutyCount: uStat.dutyCount,
-                           eventCount: uStat.eventCount,
-                           totalScore: uStat.eventCount * 2 + uStat.dutyCount
+                           dutyCount: uStat.dutyCount || 0,
+                           eventCount: uStat.eventCount || 0,
+                           dutyHours: uStat.dutyHours || 0,
+                           eventHours: uStat.eventHours || 0,
+                           totalScore: (uStat.eventCount || 0) * 5 + (uStat.eventHours || 0) * 2 + (uStat.dutyHours || 0)
                         });
                       }
                     });
@@ -796,11 +819,17 @@ function AdminPanel({ user }) {
                           <td style={{ padding: '0.75rem', fontWeight: index < 3 && u.totalScore > 0 ? 'bold' : 'normal', color: index === 0 && u.totalScore > 0 ? '#ffaa00' : 'white' }}>
                             {u.firstName} {u.lastName}
                           </td>
-                          <td style={{ padding: '0.75rem', textAlign: 'center', fontWeight: 'bold', color: '#00ff88' }}>
+                          <td style={{ padding: '0.75rem', textAlign: 'center', fontWeight: 'bold' }}>
                             {u.eventCount}
+                          </td>
+                          <td style={{ padding: '0.75rem', textAlign: 'center', color: '#00ff88', fontWeight: 'bold' }}>
+                            {u.eventHours > 0 ? `${u.eventHours} h` : '-'}
                           </td>
                           <td style={{ padding: '0.75rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
                             {u.dutyCount}
+                          </td>
+                          <td style={{ padding: '0.75rem', textAlign: 'center', color: '#00ccff', fontWeight: 'bold' }}>
+                            {u.dutyHours > 0 ? `${u.dutyHours.toFixed(1)} h` : '-'}
                           </td>
                         </tr>
                       );

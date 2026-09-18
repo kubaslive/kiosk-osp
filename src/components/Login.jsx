@@ -117,11 +117,27 @@ function Login() {
           justifyContent: 'center', 
           alignItems: 'center', 
           cursor: 'pointer',
-          background: 'transparent',
-          position: 'relative'
+          background: '#0f172a',
+          position: 'relative',
+          overflow: 'hidden'
         }} 
         onClick={() => setIsStandby(false)}
       >
+        {/* Pogoda / Radar w tle wygaszacza */}
+        <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: 0, pointerEvents: 'none' }}>
+          <iframe 
+            width="100%" 
+            height="100%" 
+            src="https://embed.windy.com/embed.html?type=map&location=coordinates&metricRain=mm&metricTemp=%C2%B0C&metricWind=km/h&zoom=7&overlay=radar&product=radar&menu=&message=&marker=&calendar=now&city=&playmap=true&region=Europe&lat=51.759&lon=19.456" 
+            frameBorder="0"
+            style={{ width: '100%', height: '100%', pointerEvents: 'none', filter: 'saturate(1.2)' }}
+          ></iframe>
+        </div>
+        {/* Warstwa przyciemniająca dla czytelności tekstu */}
+        <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(15, 23, 42, 0.75)', zIndex: 1, pointerEvents: 'none' }}></div>
+        
+        {/* Zawartość wygaszacza */}
+        <div style={{ zIndex: 2, display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%' }}>
         <div style={{ fontSize: '10vw', fontWeight: 'bold', fontFamily: 'monospace', color: '#ffffff', lineHeight: '1', textShadow: '0 10px 30px rgba(0,0,0,0.5)' }}>
           {time.toLocaleTimeString('pl-PL')}
         </div>
@@ -165,6 +181,7 @@ function Login() {
 
         <div style={{ position: 'absolute', bottom: '5vh', color: 'rgba(255,255,255,0.4)', fontSize: '1.2rem', letterSpacing: '2px', animation: 'pulse 3s infinite' }}>
           DOTKNIJ EKRANU ABY ZARZĄDZAĆ SYSTEMEM
+        </div>
         </div>
       </div>
     );
