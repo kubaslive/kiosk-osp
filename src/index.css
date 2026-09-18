@@ -52,16 +52,13 @@ body {
 
 /* Glassmorphism Card */
 .glass-card {
-  background: var(--surface-color);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  background: rgba(30, 41, 59, 0.95);
   border: 1px solid var(--surface-border);
   border-radius: 24px;
   padding: 3rem;
   width: 100%;
   max-width: 480px;
   box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
-  animation: fadeUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 .dashboard-card {

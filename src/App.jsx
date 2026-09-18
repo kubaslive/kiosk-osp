@@ -77,7 +77,7 @@ function App() {
         </div>
         <div style={{ fontSize: '1.1rem', color: 'rgba(255,255,255,0.6)', marginTop: '1rem', letterSpacing: '1px' }}>Ładowanie modułów strażackich...</div>
         <div style={{ position: 'absolute', bottom: '2rem', color: 'rgba(255,255,255,0.2)', fontSize: '0.9rem' }}>
-          v1.0.6 beta | System Zarządzania Zmianą
+          v1.0.7 beta | System Zarządzania Zmianą
         </div>
       </div>
     );
